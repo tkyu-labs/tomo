@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 ENV_NAME = "TOMO_PRIVATE"
 MARK = "[tomo-privacy]"
 BROWSER_TOOLS = {"browser_type", "browser_fill", "browser_press"}
+# Never available in Tomo: password managers / login vault (Tomo never handles passwords), Browser Use's free-form
+# Python (arguments cannot be inspected) and code execution (Hermes issue #139062).
+BLOCKED_TOOLS = {"browser_exec", "execute_code"}
+BLOCKED_PREFIXES = ("browser_vault_",)
 
 
 class Policy:
@@ -90,6 +94,8 @@ def build(policy: Policy, ctx: Any = None, approve_fn=None) -> dict[str, Any]:
     def tool_execution(tool_name: str = "", args: Any = None, next_call=None, task_id: str | None = None, **_: Any):
         # Runs around the whole tool call, before Hermes' pre_tool_call hooks and before tool.start is emitted with
         # the effective args — so the decision and the substitution both happen here (model_tools.py:839-844).
+        if tool_name in BLOCKED_TOOLS or tool_name.startswith(BLOCKED_PREFIXES):
+            return json.dumps({"error": f"{MARK} {tool_name} is not available in Tomo. Ask the student to do this step themselves."})
         names = wants_fill(tool_name, args or {})
         if not names:
             return masker.mask_any(next_call(args))

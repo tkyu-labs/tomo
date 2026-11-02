@@ -112,3 +112,10 @@ def test_shared_cases_match_typescript():
     m = Masker.from_payload(data["payload"])
     for given, expected in data["cases"]:
         assert m.mask(given) == expected, given
+
+
+def test_vault_and_code_tools_are_blocked():
+    cb = tomo_privacy.build(tomo_privacy.Policy(PAYLOAD))
+    for name in ("browser_vault_fill", "browser_vault_save_login", "execute_code", "browser_exec"):
+        out = cb["tool_execution"](tool_name=name, args={}, next_call=lambda a: pytest.fail("must not run"))
+        assert "not available in Tomo" in out

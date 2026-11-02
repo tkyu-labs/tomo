@@ -1,0 +1,53 @@
+schema: 1
+version: 1
+sections:
+  - { id: basics, title: { en: "About you", zh: "关于你", ja: "あなたについて" } }
+questions:
+  - id: full_name
+    section: basics
+    ask: setup
+    type: identifier
+    variable: FULL_NAME
+    aliases: [name, furigana]
+    label: { en: "Name", zh: "姓名", ja: "氏名" }
+    why: { en: "To greet you.", zh: "用来称呼你。", ja: "呼びかけのため。" }
+    remember: "The student's name is {{FULL_NAME}}."
+  - id: student_number
+    section: basics
+    ask: setup
+    type: identifier
+    variable: STUDENT_NUMBER
+    validate: "^[0-9]{2}[A-Z][0-9]{4}$"
+    label: { en: "Student number", zh: "学号", ja: "学籍番号" }
+    why: { en: "For the portal.", zh: "用于门户。", ja: "ポータル用。" }
+    remember: "Student number: {{STUDENT_NUMBER}}."
+  - id: faculty
+    section: basics
+    ask: setup
+    type: choice
+    prefill_from: { question: student_number, regex: "^[0-9]{2}([AB])", group: 1 }
+    options:
+      - { value: A, label: { en: "Faculty of Engineering", zh: "工学部", ja: "工学部" } }
+      - { value: B, label: { en: "Faculty of Information", zh: "信息学部", ja: "情報学部" } }
+    label: { en: "Faculty", zh: "学部", ja: "学部" }
+    why: { en: "Courses differ.", zh: "课程不同。", ja: "科目が異なります。" }
+    remember: "Faculty: {answer}."
+  - id: year
+    section: basics
+    ask: setup
+    type: number
+    range: [1, 4]
+    label: { en: "Year", zh: "年级", ja: "学年" }
+    why: { en: "Rules depend on it.", zh: "规则与年级有关。", ja: "学年で規則が変わります。" }
+    remember: "Year {answer} student."
+  - id: grades_consent
+    section: basics
+    ask: setup
+    type: choice
+    when: "year > 1"
+    options:
+      - { value: watch, label: { en: "Yes, but only while I'm watching", zh: "可以，必须在我的注视下进行", ja: "はい、必ず私が見ている前で" } }
+      - { value: never, label: { en: "No", zh: "不可以", ja: "いいえ" } }
+    label: { en: "May Tomo read your grades?", zh: "Tomo 可以读取成绩吗？", ja: "成績を読んでもよいですか？" }
+    why: { en: "For credit checks.", zh: "核对学分。", ja: "単位確認のため。" }
+    remember: "Grades: {answer}."

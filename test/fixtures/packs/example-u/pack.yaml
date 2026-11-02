@@ -1,0 +1,31 @@
+# Fictional pack for Tomo's tests (not a real school).
+schema: 1
+id: example-u
+name: { en: "Example University Pack", zh: "Example University Pack", ja: "Example University Pack" }
+school:
+  name: { en: "Example University", zh: "示例大学", ja: "サンプル大学" }
+  short: サンプル大学
+  domain: example-u.ac.jp
+  country: JP
+version: 0.0.1
+license: MIT
+publisher: { name: "Tomo tests", github: tomo-tests }
+requires: { tomo: ">=0.1.0", hermes: "0.21.x" }
+permissions:
+  network: [www.example-u.ac.jp]
+  browser_origins: [portal.example-u.ac.jp]
+  personal_data: [grades]
+  computer_use: false
+sources: { official: [example-u.ac.jp] }
+skills: [campus-portal]
+ui:
+  quick_topics:
+    - id: timetable
+      icon: calendar
+      skill: campus-portal
+      label: { en: "My timetable", zh: "我的课表", ja: "時間割" }
+      description: { en: "Classes from the portal.", zh: "门户中的课程。", ja: "ポータルの授業。" }
+      prompts:
+        - { en: "What classes do I have today?", zh: "我今天有什么课？", ja: "今日の授業は？" }
+  quick_ask_suggestions:
+    - { skill: campus-portal, text: { en: "What classes do I have today?", zh: "我今天有什么课？", ja: "今日の授業は？" } }

@@ -1,0 +1,49 @@
+// Model providers in the key sheet and how each maps to Hermes' config.
+export type ProviderId = 'gakuen' | 'openai' | 'openai-api' | 'openrouter' | 'deepseek' | 'custom'
+export type Reasoning = 'off' | 'low' | 'medium' | 'high'
+
+export interface ProviderSelection {
+  id: ProviderId
+  model: string
+  /** GakuenAI relay URL or a custom endpoint (custom only). */
+  baseUrl?: string
+  /** custom endpoints: OpenAI- or Anthropic-compatible */
+  customKind?: 'openai' | 'anthropic'
+  reasoning?: Reasoning
+}
+
+export const PROVIDER_KEY_ENV: Record<ProviderId, string | null> = {
+  gakuen: 'GAKUEN_API_KEY',
+  openai: null, // ChatGPT sign-in (OAuth, tokens in Hermes' auth.json)
+  'openai-api': 'OPENAI_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
+  custom: 'TOMO_CUSTOM_API_KEY',
+}
+
+export const REASONING_EFFORT: Record<Reasoning, string> = { off: 'none', low: 'low', medium: 'medium', high: 'high' }
+
+/** `model` and `custom_providers` blocks of config.yaml for one selection. */
+export function providerConfig(sel: ProviderSelection): { model: Record<string, unknown>; custom_providers?: Record<string, unknown>[] } {
+  switch (sel.id) {
+    case 'gakuen':
+      if (!sel.baseUrl) throw new Error('GakuenAI needs the relay URL')
+      return {
+        model: { provider: 'custom:gakuen', default: sel.model },
+        custom_providers: [{ name: 'gakuen', base_url: sel.baseUrl, key_env: 'GAKUEN_API_KEY', api_mode: 'chat_completions' }],
+      }
+    case 'custom':
+      if (!sel.baseUrl) throw new Error('a custom endpoint needs a base URL')
+      return {
+        model: { provider: 'custom:endpoint', default: sel.model },
+        custom_providers: [{
+          name: 'endpoint', base_url: sel.baseUrl, key_env: 'TOMO_CUSTOM_API_KEY',
+          api_mode: sel.customKind === 'anthropic' ? 'anthropic_messages' : 'chat_completions',
+        }],
+      }
+    case 'openai':
+      return { model: { provider: 'openai-codex', default: sel.model } }
+    default:
+      return { model: { provider: sel.id, default: sel.model } }
+  }
+}

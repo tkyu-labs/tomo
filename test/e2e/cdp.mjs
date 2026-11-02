@@ -6,9 +6,10 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-export async function launchApp({ port = 9351, env = {}, args = [] } = {}) {
-  const electron = require('electron')
-  const proc = spawn(electron, ['.', `--remote-debugging-port=${port}`, ...args], {
+export async function launchApp({ port = 9351, env = {}, args = [], executable } = {}) {
+  // executable: an installed Tomo.app binary; default: the dev Electron with this repository
+  const bin = executable ?? require('electron')
+  const proc = spawn(bin, [...(executable ? [] : ['.']), `--remote-debugging-port=${port}`, ...args], {
     env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'],
   })
   let log = ''

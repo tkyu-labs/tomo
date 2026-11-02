@@ -1,0 +1,35 @@
+# Tomo app packaging. Unsigned builds for testing: `npm run dist:mac` (macOS) / `npm run dist:win` (on Windows).
+# Signing and notarisation are configured on the release machine (see BUILDING.md), never in this file.
+appId: io.github.tkyu-labs.tomo
+productName: Tomo
+copyright: Copyright (c) 2026 Tomo contributors
+directories:
+  output: release
+  buildResources: build-resources
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: build/engine
+    to: engine
+  - from: plugins
+    to: plugins
+    filter: ['**/*', '!tests/**', '!**/__pycache__/**']
+  - from: build/packs
+    to: packs
+asarUnpack: []
+mac:
+  target:
+    - target: dmg
+      arch: [arm64]
+  category: public.app-category.education
+  identity: null
+  hardenedRuntime: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: false

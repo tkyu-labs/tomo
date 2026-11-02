@@ -17,7 +17,9 @@
     "test:watch": "vitest",
     "test:real": "TOMO_REAL_MODEL=1 vitest run test/real",
     "test:e2e": "electron-vite build && node test/e2e/smoke.mjs && node test/e2e/first-run.mjs",
-    "test:py": ".dev/test-venv/bin/python -m pytest -q plugins/tests"
+    "test:py": ".dev/test-venv/bin/python -m pytest -q plugins/tests",
+    "dist:mac": "node scripts/build-engine.mjs && scripts/prepare-packs.sh && electron-vite build && electron-builder --mac -c.electronDownload.cache=.dev/cache/electron",
+    "dist:win": "node scripts/build-engine.mjs && bash scripts/prepare-packs.sh && electron-vite build && electron-builder --win -c.electronDownload.cache=.dev/cache/electron"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -27,6 +29,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
     "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -43,6 +46,8 @@
     "@fortawesome/react-fontawesome": "^3.5.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "sigstore": "^5.0.0",
     "yaml": "^2.9.1"
-  }
+  },
+  "author": "Tomo contributors"
 }

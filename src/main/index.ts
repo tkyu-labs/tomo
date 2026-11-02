@@ -5,7 +5,7 @@ import { IPC, type AppInfo } from '@shared/ipc'
 import { AppController } from './app/controller'
 import { findBrowsers } from './app/browsers'
 import { installChrome } from './app/chrome-install'
-import { devRuntime } from './hermes/runtime'
+import { bundledRuntime, devRuntime } from './hermes/runtime'
 import { tomoDataDir, tomoPaths } from './paths'
 
 const isDev = !app.isPackaged
@@ -18,6 +18,9 @@ const dataDir = process.env.TOMO_DATA_DIR || tomoDataDir({
   devRoot: isDev ? appRoot : undefined,
 })
 const paths = tomoPaths(dataDir)
+// Chromium's own profile (cache, local storage) goes inside Tomo's folder, never next to it in the user's profile.
+app.setPath('userData', join(dataDir, 'electron'))
+app.setPath('sessionData', join(dataDir, 'electron'))
 
 function packsSourceDir(): string {
   if (process.env.TOMO_PACKS_DIR) return process.env.TOMO_PACKS_DIR
@@ -31,7 +34,7 @@ const send = (channel: string, ...args: unknown[]) => win?.webContents.send(chan
 
 const controller = new AppController({
   paths,
-  runtime: isDev ? devRuntime(appRoot) : devRuntime(join(process.resourcesPath, 'engine')),
+  runtime: isDev ? devRuntime(appRoot) : bundledRuntime(join(process.resourcesPath, 'engine')),
   encryptor: {
     isAvailable: () => safeStorage.isEncryptionAvailable(),
     encrypt: (plain) => safeStorage.encryptString(plain),

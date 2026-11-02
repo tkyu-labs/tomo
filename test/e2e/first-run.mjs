@@ -13,8 +13,11 @@ const REAL = !!process.env.TOMO_E2E_REAL && !!process.env.OPENAI_API_KEY
 const data = mkdtempSync(join(tmpdir(), 'tomo-e2e-'))
 const stub = await startStubModel()
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// TOMO_E2E_APP: run an installed app binary instead (with its bundled packs); TOMO_E2E_PACK: pack to pick.
+const PACK = process.env.TOMO_E2E_PACK ?? 'example-u'
 const app = await launchApp({
-  env: { TOMO_DATA_DIR: data, TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') },
+  executable: process.env.TOMO_E2E_APP,
+  env: { TOMO_DATA_DIR: data, ...(process.env.TOMO_E2E_APP ? {} : { TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }) },
   args: ['--use-mock-keychain'],
 })
 const $ = (sel) => `document.querySelector(${JSON.stringify(sel)})`
@@ -50,10 +53,19 @@ try {
   await app.waitFor($('[data-testid=connected-provider]'))
   await audit('en:ai')
   await next() // pack
-  await click('[data-testid=pack-example-u]'); await sleep(100)
+  await click(`[data-testid=pack-${PACK}]`); await sleep(100)
   await audit('en:pack')
   await next() // hatch page 1
   await app.waitFor($('.hatch-page'))
+  if (PACK !== 'example-u') {
+    // a real pack: give the name and student number, skip the rest, walk to the summary
+    await type('.hatch-aliases input:nth-child(1)', 'Lin Mei')
+    await type('.hatch-aliases input:nth-child(2)', 'リン メイ')
+    await type('#hatch-student_number', '23B0001')
+    report.hatchPages = 1
+    while (await app.evaluate(`!document.querySelector('.user-md')`)) { await next(); report.hatchPages++ }
+    await next()
+  } else {
   await type('.hatch-aliases input:nth-child(1)', 'Lin Mei')
   await type('.hatch-aliases input:nth-child(2)', 'リン メイ')
   await type('#hatch-student_number', '23B0001')
@@ -64,6 +76,7 @@ try {
   await next() // summary
   report.userMd = await app.evaluate(`document.querySelector('.user-md')?.textContent`)
   await next() // browser
+  }
   await app.waitFor(`${$('[data-testid=browser-found]')} || ${$('[data-testid=browser-missing]')}`)
   await next() // finish
   await app.waitFor(`[...document.querySelectorAll('[data-task]')].every((t) => t.dataset.state === 'done') || ${$('.task.error')}`, 120000)

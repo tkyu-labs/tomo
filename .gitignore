@@ -12,3 +12,5 @@ __pycache__/
 .DS_Store
 .env
 *.tsbuildinfo
+build/
+release/

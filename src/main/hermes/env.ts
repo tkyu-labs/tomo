@@ -47,6 +47,8 @@ export function buildHermesEnv(input: HermesEnvInput): Record<string, string> {
     XDG_STATE_HOME: join(input.hermesHome, 'xdg', 'state'),
     XDG_CACHE_HOME: join(input.cacheDir, 'xdg'),
     XDG_DATA_HOME: join(input.hermesHome, 'xdg', 'data'),
+    // bytecode caches of every Python the engine starts (incl. the system one) stay in Tomo's folder
+    PYTHONPYCACHEPREFIX: join(input.cacheDir, 'pycache'),
     PYTHONUNBUFFERED: '1',
     PYTHONIOENCODING: 'utf-8',
   })

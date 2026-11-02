@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint src test electron.vite.config.ts vitest.config.ts eslint.config.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:real": "TOMO_REAL_MODEL=1 vitest run test/real",
+    "test:e2e": "electron-vite build && node test/e2e/smoke.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

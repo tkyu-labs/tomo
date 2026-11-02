@@ -8,6 +8,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { files: ['src/renderer/**/*.{ts,tsx}'], plugins: { 'react-hooks': reactHooks }, rules: reactHooks.configs.recommended.rules, languageOptions: { globals: globals.browser } },
-  { files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'test/**/*.ts', '*.ts'], languageOptions: { globals: globals.node } },
+  { files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'test/**/*.{ts,mjs}', '*.ts'], languageOptions: { globals: globals.node } },
+  { files: ['src/main/hermes/contract.generated.ts'], linterOptions: { reportUnusedDisableDirectives: 'off' } },
   { rules: { '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }] } },
 )

@@ -1,5 +1,5 @@
 // Test helper: a throw-away Tomo data folder with a Hermes home configured for the local stub model.
-import { mkdtempSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { buildHermesEnv } from '../../src/main/hermes/env'
@@ -33,6 +33,11 @@ export function makeTestHome(configYaml: string): TestHome {
     writtenToFakeHome: () => walk(fakeHome).map((p) => p.slice(fakeHome.length)),
     cleanup: () => rmSync(dir, { recursive: true, force: true }),
   }
+}
+
+/** Copy Tomo's Hermes plugins into the test home (the app does the same at setup). */
+export function installPlugins(home: TestHome, names: string[]): void {
+  for (const name of names) cpSync(join(repoRoot, 'plugins', name), join(home.hermesHome, 'plugins', name), { recursive: true })
 }
 
 export function stubConfig(baseUrl: string, extra = ''): string {

@@ -3,6 +3,7 @@
 // - POST /v1/chat/completions      → streams (SSE) or returns JSON
 // Behaviour of a turn:
 //   * last message is a tool result        → text "Tool finished: <first 60 chars of the result>"
+//   * last user text ends with "TOOL:<name> ARGS:<json>" → that tool call
 //   * last user text contains "use a tool" → one tool call (todo_list if offered, else the first tool, args {})
 //   * anything else                        → text "Stub answer: <echo of the user text>"
 // Every request body is recorded so tests can assert what reached "the model" (e.g. no real identifiers).
@@ -46,10 +47,13 @@ function textOf(content) {
 function decide(payload) {
   const messages = payload.messages ?? []
   const last = messages[messages.length - 1] ?? {}
-  if (last.role === 'tool') return { text: `Tool finished: ${textOf(last.content).slice(0, 60)}` }
+  if (last.role === 'tool') return { text: `Tool finished: ${textOf(last.content).slice(0, 60)}`, toolResult: textOf(last.content) }
   const lastUser = [...messages].reverse().find((m) => m.role === 'user')
   const userText = textOf(lastUser?.content)
   const tools = payload.tools ?? []
+  // Explicit directive for tests: "TOOL:<name> ARGS:<json>" calls exactly that tool with those arguments.
+  const directive = userText.match(/TOOL:(\S+)\s+ARGS:(\{[^\n]*\})/)
+  if (directive) return { tool: { name: directive[1], args: JSON.parse(directive[2]) } }
   if (/use a tool/i.test(userText) && tools.length) {
     const tool = tools.find((t) => t.function?.name === 'todo_list') ?? tools[0]
     return { tool: { name: tool.function.name, args: {} } }

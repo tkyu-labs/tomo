@@ -1,0 +1,7 @@
+name: tomo-privacy
+version: 0.1.0
+description: Tomo privacy layer — identifiers stay {{PLACEHOLDERS}} inside Hermes; real values only on approved form fills.
+author: Tomo contributors
+provides_hooks:
+  - transform_tool_result
+  - transform_terminal_output

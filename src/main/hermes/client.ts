@@ -1,6 +1,7 @@
 import type { HermesProcess } from './process'
 import type { GatewayEvent } from './rpc'
 import type { SessionCreateParams, SessionCreateResult } from './contract.generated'
+import type { Masker } from '@shared/privacy/masker'
 
 export type TurnEvent =
   | { kind: 'delta'; text: string }
@@ -31,15 +32,28 @@ export function toTurnEvent(e: GatewayEvent): TurnEvent | null {
   }
 }
 
-/** Session-level API over the gateway: create, submit, interrupt, close; per-session event subscription. */
+/**
+ * Session-level API over the gateway: create, submit, interrupt, close; per-session event subscription.
+ * With a masker, it is also the privacy border of the main process: user text is masked before `prompt.submit`
+ * (Hermes stores raw prompts and auxiliary calls bypass request middleware), and every gateway event is masked
+ * before anyone in Tomo sees it (tool.start carries filled-in arguments). Only the renderer unmasks, for display.
+ */
 export class HermesClient {
   private listeners = new Map<string, Set<(e: GatewayEvent) => void>>()
 
-  constructor(private readonly hermes: HermesProcess) {
-    hermes.on('event', (e) => {
-      if (!e.session_id) return
-      for (const fn of this.listeners.get(e.session_id) ?? []) fn(e)
+  constructor(
+    private readonly hermes: HermesProcess,
+    private masker?: Masker,
+  ) {
+    hermes.on('event', (raw) => {
+      if (!raw.session_id) return
+      const e = this.masker ? this.masker.maskAny(raw) : raw
+      for (const fn of this.listeners.get(raw.session_id) ?? []) fn(e)
     })
+  }
+
+  setMasker(masker: Masker | undefined): void {
+    this.masker = masker
   }
 
   async createSession(params: SessionCreateParams = {}): Promise<SessionCreateResult> {
@@ -53,9 +67,10 @@ export class HermesClient {
     return () => set.delete(fn)
   }
 
-  /** Submit a user message. `text` must already be masked (identifiers as {{PLACEHOLDERS}}). */
+  /** Submit a user message; identifiers are replaced by {{PLACEHOLDERS}} first. */
   async submit(sessionId: string, text: string): Promise<void> {
-    await this.hermes.rpc.request('prompt.submit', { session_id: sessionId, text })
+    const masked = this.masker ? this.masker.mask(text) : text
+    await this.hermes.rpc.request('prompt.submit', { session_id: sessionId, text: masked })
   }
 
   /** Submit and collect events until `message.complete` (used by tests and the provider check). */

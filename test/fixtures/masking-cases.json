@@ -1,0 +1,19 @@
+{
+  "payload": {
+    "identifiers": [
+      { "name": "STUDENT_NUMBER", "values": ["23B0001"], "kind": "id", "label": "student number" },
+      { "name": "FULL_NAME", "values": ["Lin Mei", "林 美", "リン メイ"], "kind": "name", "label": "name" }
+    ]
+  },
+  "cases": [
+    ["my number is 23B0001.", "my number is {{STUDENT_NUMBER}}."],
+    ["23b0001", "{{STUDENT_NUMBER}}"],
+    ["２３Ｂ０００１です", "{{STUDENT_NUMBER}}です"],
+    ["23B00011", "23B00011"],
+    ["I am Lin Mei", "I am {{FULL_NAME}}"],
+    ["LinMei and lin  mei", "{{FULL_NAME}} and {{FULL_NAME}}"],
+    ["林美です、林　美", "{{FULL_NAME}}です、{{FULL_NAME}}"],
+    ["リンメイ", "{{FULL_NAME}}"],
+    ["nothing here", "nothing here"]
+  ]
+}

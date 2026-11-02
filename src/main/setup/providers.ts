@@ -1,16 +1,9 @@
 // Model providers in the key sheet and how each maps to Hermes' config.
-export type ProviderId = 'gakuen' | 'openai' | 'openai-api' | 'openrouter' | 'deepseek' | 'custom'
-export type Reasoning = 'off' | 'low' | 'medium' | 'high'
+import type { ProviderChoice, ProviderId, Reasoning } from '@shared/ipc'
 
-export interface ProviderSelection {
-  id: ProviderId
-  model: string
-  /** GakuenAI relay URL or a custom endpoint (custom only). */
-  baseUrl?: string
-  /** custom endpoints: OpenAI- or Anthropic-compatible */
-  customKind?: 'openai' | 'anthropic'
-  reasoning?: Reasoning
-}
+export type { ProviderId, Reasoning }
+/** baseUrl: GakuenAI relay URL or a custom endpoint; customKind: OpenAI- or Anthropic-compatible endpoint. */
+export type ProviderSelection = ProviderChoice
 
 export const PROVIDER_KEY_ENV: Record<ProviderId, string | null> = {
   gakuen: 'GAKUEN_API_KEY',

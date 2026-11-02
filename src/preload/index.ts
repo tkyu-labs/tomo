@@ -1,8 +1,42 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { IPC, type TomoApi } from '@shared/ipc'
 
+const invoke = (channel: string) => (...args: unknown[]) => ipcRenderer.invoke(channel, ...args)
+function listen<T extends unknown[]>(channel: string, cb: (...args: T) => void): () => void {
+  const handler = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...(args as T))
+  ipcRenderer.on(channel, handler)
+  return () => ipcRenderer.removeListener(channel, handler)
+}
+
 const api: TomoApi = {
-  appInfo: () => ipcRenderer.invoke(IPC.appInfo),
+  appInfo: invoke(IPC.appInfo) as TomoApi['appInfo'],
+  getState: invoke(IPC.getState) as TomoApi['getState'],
+  setPrefs: invoke(IPC.setPrefs) as TomoApi['setPrefs'],
+  listPacks: invoke(IPC.listPacks) as TomoApi['listPacks'],
+  selectPack: invoke(IPC.selectPack) as TomoApi['selectPack'],
+  connectProvider: invoke(IPC.connectProvider) as TomoApi['connectProvider'],
+  findBrowsers: invoke(IPC.findBrowsers) as TomoApi['findBrowsers'],
+  finishSetup: invoke(IPC.finishSetup) as TomoApi['finishSetup'],
+  completeSetup: invoke(IPC.completeSetup) as TomoApi['completeSetup'],
+  onSetupTask: (cb) => listen(IPC.setupTask, cb),
+  displayValues: invoke(IPC.displayValues) as TomoApi['displayValues'],
+  listSessions: invoke(IPC.listSessions) as TomoApi['listSessions'],
+  createSession: invoke(IPC.createSession) as TomoApi['createSession'],
+  history: invoke(IPC.history) as TomoApi['history'],
+  send: invoke(IPC.send) as TomoApi['send'],
+  interrupt: invoke(IPC.interrupt) as TomoApi['interrupt'],
+  onChatEvent: (cb) => listen(IPC.chatEvent, cb),
+  onEngineRequest: (cb) => listen(IPC.engineRequest, cb),
+  respond: invoke(IPC.respond) as TomoApi['respond'],
+  listModels: invoke(IPC.listModels) as TomoApi['listModels'],
+  setModel: invoke(IPC.setModel) as TomoApi['setModel'],
+  setReasoning: invoke(IPC.setReasoning) as TomoApi['setReasoning'],
+  userMemory: invoke(IPC.userMemory) as TomoApi['userMemory'],
+  restartEngine: invoke(IPC.restartEngine) as TomoApi['restartEngine'],
+  diagnostics: invoke(IPC.diagnostics) as TomoApi['diagnostics'],
+  exportData: invoke(IPC.exportData) as TomoApi['exportData'],
+  deleteData: invoke(IPC.deleteData) as TomoApi['deleteData'],
+  onEngineState: (cb) => listen(IPC.engineState, cb),
 }
 
 contextBridge.exposeInMainWorld('tomo', api)

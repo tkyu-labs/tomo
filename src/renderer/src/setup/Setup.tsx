@@ -1,0 +1,338 @@
+// First run: Welcome + language → Privacy → AI provider → School pack → Hatch → Browser → Finish.
+import { useEffect, useState } from 'react'
+import type { AppState, BrowserInfo, FinishTask, PackSummary, ProviderChoice, TaskState } from '@shared/ipc'
+import { pick, type Answers } from '@shared/pack/types'
+import { useCopy, useLocale, type Locale } from '../i18n'
+import { Icon, type IconName } from '../ui/Icon'
+import { HatchPage, HatchSummary } from './HatchFlow'
+import { ProviderSheet, providerLabel } from './ProviderSheet'
+
+const STEP = { welcome: 0, privacy: 1, ai: 2, pack: 3, hatch: 4, browser: 5, finish: 6 } as const
+const FINISH_TASKS: FinishTask[] = ['engine', 'settings', 'profile', 'start', 'test']
+
+export function Setup({ state, refresh, onDone }: { state: AppState; refresh: () => Promise<AppState>; onDone: () => void }) {
+  const c = useCopy()
+  const { locale, setLocale } = useLocale()
+  const [step, setStep] = useState(0)
+  const [packs, setPacks] = useState<PackSummary[]>([])
+  const [packId, setPackId] = useState<string | null>(state.pack?.id ?? null)
+  const [hatchPage, setHatchPage] = useState(0)
+  const [answers, setAnswers] = useState<Answers>({})
+  const [prefilled, setPrefilled] = useState<string[]>([])
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [gakuenKey, setGakuenKey] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [browsers, setBrowsers] = useState<BrowserInfo[] | null>(null)
+  const [tasks, setTasks] = useState<Record<FinishTask, { state: TaskState; detail?: string }>>(
+    Object.fromEntries(FINISH_TASKS.map((t) => [t, { state: 'pending' }])) as Record<FinishTask, { state: TaskState }>,
+  )
+  const [finishResult, setFinishResult] = useState<{ ok: boolean; failed?: FinishTask } | null>(null)
+
+  useEffect(() => { void window.tomo.listPacks().then(setPacks) }, [])
+  useEffect(() => window.tomo.onSetupTask((u) => setTasks((t) => ({ ...t, [u.task]: { state: u.state, detail: u.detail } }))), [])
+  useEffect(() => { if (step === STEP.browser && !browsers) void window.tomo.findBrowsers().then(setBrowsers) }, [step, browsers])
+
+  const pack = packs.find((p) => p.id === packId)
+  const hatch = pack?.hatch
+  const hatchPages = hatch?.sections.length ?? 0
+  const inHatchQuestions = step === STEP.hatch && hatchPage < hatchPages
+
+  const runFinish = () => {
+    setFinishResult(null)
+    setTasks(Object.fromEntries(FINISH_TASKS.map((t) => [t, { state: 'pending' }])) as Record<FinishTask, { state: TaskState }>)
+    void window.tomo.finishSetup(answers).then(setFinishResult)
+  }
+
+  const steps = [
+    c('Welcome', '欢迎', 'ようこそ'), c('Privacy', '隐私保护', 'プライバシー'), c('AI provider', 'AI 服务', 'AI サービス'),
+    c('School pack', '选择学校', '学校パック'), c('Hatch', 'Hatch 问卷', 'Hatch質問'), c('Browser', '浏览器', 'ブラウザ'),
+    c('Finish', '完成设置', '仕上げ'),
+  ]
+
+  const next = async () => {
+    setError(null)
+    try {
+      if (step === STEP.pack) {
+        await window.tomo.selectPack(packId)
+        if (!packId) { setStep(STEP.browser); return }
+      }
+      if (step + 1 === STEP.finish) runFinish()
+      setStep(step + 1)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+  const back = () => {
+    if (step === STEP.hatch && hatchPage > 0) return setHatchPage(hatchPage - 1)
+    if (step === STEP.browser && !packId) return setStep(STEP.pack)
+    setStep(step - 1)
+  }
+
+  const connectGakuen = async () => {
+    setError(null)
+    try {
+      await window.tomo.connectProvider({ id: 'gakuen', model: 'deepseek-flash', reasoning: 'low' }, gakuenKey.trim())
+      setGakuenKey('')
+      await refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+  const connect = async (choice: ProviderChoice, key?: string) => {
+    await window.tomo.connectProvider(choice, key)
+    await refresh()
+    setSheetOpen(false)
+  }
+
+  const finishDone = finishResult?.ok === true
+  const canContinue =
+    (step !== STEP.ai || !!state.provider) && (step !== STEP.finish || finishDone)
+
+  return (
+    <main className="standalone-page onboarding-page">
+      <div className="hatch-shell">
+        <div className="hatch-brand">
+          <div className="brand-mark">伴</div>
+          <strong>Tomo</strong>
+          <span className="engine-pill ready" role="status">
+            <Icon name="check" size={11} />
+            {c('AI engine ready', 'AI 引擎已就绪', 'AI エンジン準備完了')}
+          </span>
+        </div>
+        <div className="setup-progress" aria-label="Setup progress">
+          {steps.map((label, i) => (
+            <div className={`${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`} key={label}>
+              <span>{i < step ? <Icon name="check" size={12} /> : i + 1}</span>
+              <small>{label}</small>
+            </div>
+          ))}
+        </div>
+        <div className="setup-card" data-step={step}>
+          {step !== STEP.hatch && <span className="eyebrow">{c('Stage', '阶段', 'ステージ')} {step + 1} / {steps.length}</span>}
+
+          {step === STEP.welcome && (
+            <>
+              <div className="setup-visual"><Icon name="language" size={30} /></div>
+              <h1>{c('Welcome to Tomo', '欢迎使用 Tomo', 'Tomoへようこそ')}</h1>
+              <p>{c('Your private, multilingual student assistant. Choose your preferred app language to get started.', '你的私密、多语言学生助手。选择你偏好的应用语言开始使用。', 'プライバシーを重視した、多言語対応の学生アシスタントです。言語を選択して開始してください。')}</p>
+              <div className="setup-language-grid">
+                {([['en', 'English'], ['zh', '简体中文'], ['ja', '日本語']] as [Locale, string][]).map(([code, name]) => (
+                  <button className={locale === code ? 'selected' : ''} key={code} onClick={() => setLocale(code)}>
+                    <Icon name="language" size={16} />
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === STEP.privacy && (
+            <>
+              <div className="setup-visual"><Icon name="shield" size={30} /></div>
+              <h1>{c('How privacy works in Tomo', 'Tomo 的隐私保护原则', 'Tomoのプライバシー保護')}</h1>
+              <p>{c('Your data is protected before it ever leaves this computer.', '在任何数据离开这台电脑前，均已得到严格的本地保护。', 'データがこの端末から送信される前に、厳格な保護が行われます。')}</p>
+              <div className="privacy-principles">
+                {([
+                  ['lock', c('Masked first', '先遮蔽', '先にマスキング'), c('Your name and student number are replaced by placeholders on this computer before any AI model sees them.', '姓名和学号在本机先替换成占位符，AI 模型看不到真实身份。', '氏名や学籍番号は、AI モデルに届く前にこの端末でプレースホルダーに置き換えます。')],
+                  ['shield', c('Approval each time', '每次确认', '毎回承認'), c('Grades and other personal data are sent only after you approve each item.', '成绩等个人数据只有在你逐项批准后才会发送。', '成績などの個人データは、項目ごとに承認した後でのみ送信します。')],
+                  ['key', c('No passwords', '不保存密码', 'パスワードなし'), c('Tomo never stores or types your portal password; you sign in yourself.', 'Tomo 从不保存或代填门户密码，登录由你自己完成。', 'Tomo はポータルのパスワードを保存も入力もしません。ログインはご自身で。')],
+                ] as [IconName, string, string][]).map(([icon, title, detail]) => (
+                  <div key={title}>
+                    <Icon name={icon} size={18} />
+                    <strong>{title}</strong>
+                    <span>{detail}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === STEP.ai && (
+            <>
+              <div className="setup-visual"><Icon name="key" size={26} /></div>
+              <h1>{c('Connect an AI provider', '连接 AI 服务', 'AI サービスを接続')}</h1>
+              <p>{c('Tomo needs an AI provider to answer. If you are a tester, paste the GakuenAI key you received with Tomo.', 'Tomo 需要连接一个 AI 服务才能回答问题。测试用户请粘贴随 Tomo 收到的 GakuenAI Key。', 'Tomo が回答するには AI サービスの接続が必要です。テスターの方は Tomo と一緒に届いた GakuenAI キーを貼り付けてください。')}</p>
+              {state.provider ? (
+                <div className="connected-row" data-testid="connected-provider">
+                  <Icon name="check" size={14} />
+                  <div>
+                    <strong>{providerLabel(state.provider.id)}</strong>
+                    <span>{state.provider.model}{state.keyHint ? ` · ${state.keyHint}` : ''}</span>
+                  </div>
+                  <button className="secondary" onClick={() => setSheetOpen(true)}>{c('Change…', '更换…', '変更…')}</button>
+                </div>
+              ) : (
+                <div className="setup-key">
+                  {state.gakuenAvailable && (
+                    <>
+                      <label className="field-label" htmlFor="gakuen-key">{c('GakuenAI key', 'GakuenAI Key', 'GakuenAI キー')}</label>
+                      <div className="key-input-row">
+                        <input id="gakuen-key" type="password" className="catalog-search-input" value={gakuenKey} onChange={(e) => setGakuenKey(e.target.value)} placeholder="gk-…" autoComplete="off" spellCheck={false} />
+                        <button className="secondary" disabled={!gakuenKey.trim()} onClick={connectGakuen}>{c('Connect', '连接', '接続')}</button>
+                      </div>
+                    </>
+                  )}
+                  <button className="link-button" data-testid="other-provider" onClick={() => setSheetOpen(true)}>
+                    {state.gakuenAvailable ? c('Use another provider…', '使用其他服务…', 'ほかのサービスを使う…') : c('Choose a provider…', '选择 AI 服务…', 'AI サービスを選ぶ…')}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {step === STEP.pack && (
+            <>
+              <div className="setup-visual"><Icon name="box" size={30} /></div>
+              <h1>{c('Choose your school pack', '选择你的学校能力包', '学校パックを選択')}</h1>
+              <p>{c('A school pack adds your university’s knowledge, portal guide and first-run questions. Packs are made by the community and are not affiliated with the schools.', '学校能力包会加入你所在大学的资料、门户指南和初次设置问题。能力包由社区制作，与学校无隶属关系。', '学校パックは大学の情報、ポータルの案内、初回の質問を追加します。パックはコミュニティ製で、学校とは無関係です。')}</p>
+              <div className="pack-card-list" style={{ marginTop: 0 }}>
+                {packs.map((p) => (
+                  <div key={p.id} role="button" tabIndex={0} className={`pack-card ${packId === p.id ? 'selected' : ''}`} data-testid={`pack-${p.id}`} onClick={() => setPackId(p.id)} onKeyDown={(e) => e.key === 'Enter' && setPackId(p.id)}>
+                    <div className="pack-card-header">
+                      <div className="pack-card-title-group">
+                        <Icon name="box" size={20} />
+                        <div>
+                          <h3>{pick(p.manifest.name, locale)}</h3>
+                          <p className="pack-card-school"><span lang="ja">{p.manifest.school.short}</span> · {p.manifest.school.domain} · v{p.manifest.version} · {p.manifest.publisher.name}</p>
+                        </div>
+                      </div>
+                      <span className="badge-pill community">{c('Community pack', '社区贡献包', 'コミュニティパック')}</span>
+                    </div>
+                  </div>
+                ))}
+                <div role="button" tabIndex={0} className={`pack-card ${packId === null ? 'selected' : ''}`} onClick={() => setPackId(null)} onKeyDown={(e) => e.key === 'Enter' && setPackId(null)}>
+                  <div className="pack-card-header">
+                    <div className="pack-card-title-group">
+                      <Icon name="shield" size={20} />
+                      <div>
+                        <h3>{c('My school is not listed', '我的学校不在列表中', '通っている学校が見つからない')}</h3>
+                        <p className="pack-card-school">{c('Continue with Tomo only (general help, no school data)', '仅使用 Tomo 基础版（通用帮助，无学校资料）', 'Tomoコアのみで継続（一般的な支援、学内データなし）')}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {step === STEP.hatch && hatch && pack && (
+            <>
+              <div className="hatch-page-header">
+                <div className="hatch-page-meta">
+                  <span>{pick(pack.manifest.name, locale)}</span>
+                  <span className="hatch-counter">
+                    {hatchPage < hatchPages ? c(`Page ${hatchPage + 1} of ${hatchPages}`, `第 ${hatchPage + 1} / ${hatchPages} 页`, `${hatchPage + 1} / ${hatchPages} ページ`) : c('Summary', '汇总', 'まとめ')}
+                  </span>
+                </div>
+                <h1>{hatchPage < hatchPages ? pick(hatch.sections[hatchPage]!.title, locale) : c('Check your answers', '核对你的回答', '回答の確認')}</h1>
+                {hatchPage < hatchPages && hatch.sections[hatchPage]!.intro && <p className="hatch-page-intro">{pick(hatch.sections[hatchPage]!.intro, locale)}</p>}
+              </div>
+              {hatchPage < hatchPages ? (
+                <HatchPage hatch={hatch} sectionIndex={hatchPage} answers={answers} prefilled={prefilled} onAnswers={(a, p) => { setAnswers(a); setPrefilled(p) }} lang={locale} />
+              ) : (
+                <HatchSummary hatch={hatch} answers={answers} lang={locale} onEdit={setHatchPage} />
+              )}
+            </>
+          )}
+
+          {step === STEP.browser && (
+            <>
+              <div className="setup-visual"><Icon name="external" size={26} /></div>
+              <h1>{c('Browser for web tasks', '用于网页操作的浏览器', 'Web 操作用のブラウザ')}</h1>
+              <p>{c('Tomo can open school sites in a browser window you can see, after you approve each action. It uses its own browser profile and never touches your everyday one.', '在你逐项批准后，Tomo 可以在一个你看得见的浏览器窗口里打开学校网站。它使用自己独立的浏览器配置，不会动你平时用的那个。', '操作を一つずつ承認すると、Tomo は見えるブラウザウィンドウで学校のサイトを開けます。専用のブラウザプロファイルを使い、普段のものには触れません。')}</p>
+              <div className="permission-list">
+                {browsers === null ? (
+                  <div className="permission-row"><span className="spinner" /></div>
+                ) : browsers.length ? (
+                  browsers.slice(0, 1).map((b) => (
+                    <div className="permission-row" key={b.path} data-testid="browser-found">
+                      <span className="ok"><Icon name="check" size={14} /></span>
+                      <div>
+                        <strong>{b.name}</strong>
+                        <small>{c('Found · used with a Tomo profile', '已找到 · 使用 Tomo 专用配置', '見つかりました · Tomo 専用プロファイルで使用')}</small>
+                      </div>
+                      <b>{c('Ready', '就绪', '準備完了')}</b>
+                    </div>
+                  ))
+                ) : (
+                  <div className="permission-row" data-testid="browser-missing">
+                    <span className="warn"><Icon name="info" size={14} /></span>
+                    <div>
+                      <strong>Google Chrome</strong>
+                      <small>{c('Not found. Web tasks stay off until Chrome or Edge is installed.', '未找到。安装 Chrome 或 Edge 之前，网页操作不可用。', '見つかりません。Chrome か Edge を入れるまで Web 操作はオフです。')}</small>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <p className="setup-footnote">{c('Screen and accessibility permissions are asked only when a task first needs them.', '屏幕录制和辅助功能权限只在任务第一次需要时才会请求。', '画面収録とアクセシビリティの権限は、タスクで初めて必要になったときにだけ確認します。')}</p>
+            </>
+          )}
+
+          {step === STEP.finish && (
+            <>
+              <div className="setup-visual"><Icon name={finishDone ? 'check' : 'cpu'} size={26} /></div>
+              <h1>{finishDone ? c('Tomo is ready', 'Tomo 已就绪', 'Tomo の準備ができました') : c('Finishing setup', '正在完成设置', '設定を仕上げています')}</h1>
+              <p>{finishDone ? c('Everything is set up on this computer.', '所有设置都已在这台电脑上完成。', 'このコンピューターでの設定がすべて完了しました。') : c('Tomo is putting your answers into its AI engine.', 'Tomo 正在把你的设置写入 AI 引擎。', '回答を AI エンジンに反映しています。')}</p>
+              <ul className="task-list" data-testid="finish-tasks">
+                {FINISH_TASKS.map((t) => {
+                  const st = tasks[t]
+                  const label: Record<FinishTask, [string, string]> = {
+                    engine: [c('Prepare the AI engine', '准备 AI 引擎', 'AI エンジンを準備'), c("In Tomo's folder", '位于 Tomo 文件夹', 'Tomo のフォルダー')],
+                    settings: [c('Save your settings', '保存设置', '設定を保存'), c('Keys go to the system keychain', 'Key 存入系统钥匙串', 'キーはシステムのキーチェーンへ')],
+                    profile: [c("Create Tomo's profile of you", '创建你的个人资料', 'あなたのプロフィールを作成'), c('Identifiers only as placeholders', '身份信息只写成占位符', '識別子はプレースホルダーのみ')],
+                    start: [c('Start the AI engine', '启动 AI 引擎', 'AI エンジンを起動'), c('Runs on this computer, no network port', '在本机运行，不占用网络端口', 'このコンピューターで動作し、ネットワークポートは使いません')],
+                    test: [c(`Test ${state.provider ? providerLabel(state.provider.id) : 'the AI provider'}`, `测试 ${state.provider ? providerLabel(state.provider.id) : 'AI 服务'}`, `${state.provider ? providerLabel(state.provider.id) : 'AI サービス'} をテスト`), c('Sends one short test request', '发送一次简短的测试请求', '短いテストリクエストを 1 回送信')],
+                  }
+                  return (
+                    <li key={t} className={`task ${st.state}`} data-task={t} data-state={st.state}>
+                      <span className="task-mark" aria-hidden="true">
+                        {st.state === 'done' ? <Icon name="check" size={11} /> : st.state === 'error' ? <Icon name="close" size={10} /> : st.state === 'running' ? <span className="spinner" /> : null}
+                      </span>
+                      <div>
+                        <strong>{label[t][0]}</strong>
+                        <span>{st.state === 'error' ? st.detail : label[t][1]}</span>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+              {finishResult && !finishResult.ok && (
+                <div className="task-actions">
+                  <button className="secondary" onClick={() => void window.tomo.diagnostics().then((d) => navigator.clipboard?.writeText(d))}>{c('Copy diagnostics', '复制诊断信息', '診断情報をコピー')}</button>
+                  {finishResult.failed === 'test' || finishResult.failed === 'settings' ? (
+                    <button className="primary" onClick={() => setStep(STEP.ai)}>{c('Change AI provider', '更换 AI 服务', 'AI サービスを変更')}</button>
+                  ) : null}
+                  <button className="primary" onClick={runFinish}>{c('Try Again', '重试', '再試行')}</button>
+                </div>
+              )}
+            </>
+          )}
+
+          {error && <p className="hatch-note error" role="alert">{error}</p>}
+
+          <div className="setup-actions">
+            {step > 0 && step !== STEP.finish && (
+              <button className="secondary" onClick={back}>
+                {step === STEP.hatch && hatchPage > 0 ? c('Previous', '上一页', '前へ') : c('Back', '返回', '戻る')}
+              </button>
+            )}
+            {step === STEP.welcome ? (
+              <button className="primary setup-start" data-testid="setup-next" onClick={() => setStep(1)}>{c('Get Started', '开始使用', 'はじめる')}</button>
+            ) : inHatchQuestions ? (
+              <button className="primary" data-testid="setup-next" onClick={() => setHatchPage(hatchPage + 1)}>
+                {hatchPage === hatchPages - 1 ? c('Review answers', '查看汇总', '回答を確認') : c('Next', '下一页', '次へ')}
+                <Icon name="chevron" size={15} />
+              </button>
+            ) : (
+              <button className="primary" data-testid="setup-next" disabled={!canContinue} onClick={() => (step === STEP.finish ? void window.tomo.completeSetup().then(onDone) : void next())}>
+                {step === STEP.finish ? c('Start Using Tomo', '开始使用 Tomo', 'Tomo を使い始める') : c('Continue', '继续', '次へ')}
+                {step !== STEP.finish && <Icon name="chevron" size={15} />}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      {sheetOpen && <ProviderSheet onClose={() => setSheetOpen(false)} onConnect={connect} gakuenAvailable={state.gakuenAvailable} />}
+    </main>
+  )
+}

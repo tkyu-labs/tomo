@@ -40,7 +40,8 @@ export async function launchApp({ port = 9351, env = {}, args = [] } = {}) {
   const waitFor = async (expression, timeout = 30000) => {
     const end = Date.now() + timeout
     while (Date.now() < end) {
-      const v = await evaluate(expression).catch(() => undefined)
+      // DOM nodes cannot be returned by value: turn them into true
+      const v = await evaluate(`(() => { const v = (${expression}); return v instanceof Node ? true : v })()`).catch(() => undefined)
       if (v) return v
       await sleep(200)
     }

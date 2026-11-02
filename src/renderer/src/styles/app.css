@@ -1,0 +1,14 @@
+/* Additions for the app on top of the prototype's design language (index.css, theme.css). */
+.answer-body > :first-child { margin-top: 0; }
+.answer-body p, .answer-body ul, .answer-body ol { margin: 0 0 10px; }
+.answer-body ul, .answer-body ol { padding-left: 1.3em; }
+.answer-body pre { background: var(--surface-muted); border-radius: var(--r-sm); padding: 10px 12px; overflow-x: auto; font-size: 13px; }
+.answer-body code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+.answer-body .md-h1, .answer-body .md-h2 { font-size: 16px; margin: 14px 0 6px; }
+.answer-body .md-h3, .answer-body .md-h4 { font-size: 15px; margin: 12px 0 4px; }
+.md-table-wrap { overflow-x: auto; margin: 0 0 10px; }
+.md-table { border-collapse: collapse; font-size: 13px; }
+.md-table th, .md-table td { border-bottom: var(--hairline) solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+.md-table th { color: var(--text-muted); font-weight: 600; }
+.tool-summary ul { margin: 6px 0 0; padding-left: 1.2em; color: var(--text-muted); font-size: 12px; }
+.topic-icon .brand-mark { width: 40px; height: 40px; font-size: 20px; }

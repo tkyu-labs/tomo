@@ -1,0 +1,122 @@
+import { useEffect, useState } from 'react'
+import type { AppState, ModelList, Reasoning, Theme, UiScale } from '@shared/ipc'
+import { useCopy, useLocale, type Locale } from '../i18n'
+import { providerLabel } from '../setup/ProviderSheet'
+
+const SCALES = [0.8, 0.9, 1, 1.1, 1.25]
+
+export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh: () => Promise<AppState>; onPrefs: (p: { theme?: Theme; uiScale?: UiScale }) => void }) {
+  const c = useCopy()
+  const { locale, setLocale } = useLocale()
+  const [models, setModels] = useState<ModelList | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<'chats' | 'everything' | null>(null)
+  const ready = state.engine.state === 'ready'
+
+  useEffect(() => { if (ready) void window.tomo.listModels().then(setModels).catch(() => setModels(null)) }, [ready])
+
+  const run = async (label: string, fn: () => Promise<unknown>, done?: string) => {
+    setBusy(label)
+    setNotice(null)
+    try { await fn(); if (done) setNotice(done); await refresh() } catch (e) { setNotice(e instanceof Error ? e.message : String(e)) } finally { setBusy(null) }
+  }
+  const levels: [Reasoning, string][] = [['off', c('Off', '关闭', 'オフ')], ['low', c('Low', '低', '低')], ['medium', c('Medium', '中', '中')], ['high', c('High', '高', '高')]]
+
+  return (
+    <main className="standalone-page product-page" data-testid="settings">
+      <header className="page-header">
+        <div>
+          <span>{c('PREFERENCES', '偏好设置', '環境設定')}</span>
+          <h1>{c('Settings', '设置', '設定')}</h1>
+          <p>{c('Language, AI model, privacy and the AI engine.', '语言、AI 模型、隐私与 AI 引擎。', '言語、AI モデル、プライバシー、AI エンジン。')}</p>
+        </div>
+      </header>
+      <div className="page-body settings-layout">
+        {notice && <p className="hatch-note" role="status">{notice}</p>}
+        <section className="settings-section">
+          <h2>{c('Appearance & language', '外观与语言', '表示と言語')}</h2>
+          <div className="setting-row">
+            <div><strong>{c('App language', '应用语言', 'アプリの言語')}</strong><span>English · 简体中文 · 日本語</span></div>
+            <select className="setting-value setting-select" value={locale} onChange={(e) => setLocale(e.target.value as Locale)} aria-label={c('App language', '应用语言', 'アプリの言語')}>
+              <option value="en">English</option><option value="zh">简体中文</option><option value="ja">日本語</option>
+            </select>
+          </div>
+          <div className="setting-row">
+            <div><strong>{c('Theme', '主题', 'テーマ')}</strong><span>{state.prefs.theme === 'dark' ? c('Dark', '深色', 'ダーク') : c('Light', '浅色', 'ライト')}</span></div>
+            <button className="setting-value" onClick={() => onPrefs({ theme: state.prefs.theme === 'dark' ? 'light' : 'dark' })}>{state.prefs.theme === 'dark' ? c('Dark', '深色', 'ダーク') : c('Light', '浅色', 'ライト')}</button>
+          </div>
+          <div className="setting-row">
+            <div><strong>{c('Interface size', '界面大小', '表示サイズ')}</strong><span>{c('Automatic shrinks the UI on small screens', '自动：小屏幕上自动缩小', '自動：小さい画面では縮小')}</span></div>
+            <select className="setting-value setting-select" value={String(state.prefs.uiScale)} onChange={(e) => onPrefs({ uiScale: e.target.value === 'auto' ? 'auto' : Number(e.target.value) })} aria-label={c('Interface size', '界面大小', '表示サイズ')}>
+              <option value="auto">{c('Automatic', '自动', '自動')}</option>
+              {SCALES.map((z) => <option key={z} value={String(z)}>{Math.round(z * 100)}%</option>)}
+            </select>
+          </div>
+        </section>
+
+        <section className="settings-section" data-testid="model-usage">
+          <h2>{c('Model & usage', '模型与用量', 'モデルと利用状況')}</h2>
+          <div className="setting-row">
+            <div><strong>{c('Provider', '服务商', 'プロバイダー')}</strong><span>{state.provider ? `${providerLabel(state.provider.id)}${state.keyHint ? ` · ${state.keyHint}` : ''}` : '—'}</span></div>
+          </div>
+          <div className="setting-row">
+            <div><strong>{c('Model', '模型', 'モデル')}</strong><span>{state.provider?.model ?? '—'}</span></div>
+            {models && models.models.length > 1 && (
+              <select className="setting-value setting-select" value={state.provider?.model} disabled={!!busy} onChange={(e) => void run('model', () => window.tomo.setModel(e.target.value))} aria-label={c('Model', '模型', 'モデル')}>
+                {models.models.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            )}
+          </div>
+          <div className="setting-row">
+            <div><strong>{c('Thinking level', '思考等级', '思考レベル')}</strong><span>{c('Higher is slower and costs more; Hermes uses only levels the model supports.', '等级越高越慢、费用越高；只会使用模型支持的等级。', '高いほど遅く費用もかかります。モデルが対応するレベルだけを使います。')}</span></div>
+            <div className="segmented" role="radiogroup" aria-label={c('Thinking level', '思考等级', '思考レベル')}>
+              {levels.map(([v, label]) => (
+                <button key={v} role="radio" aria-checked={(state.provider?.reasoning ?? 'low') === v} className={(state.provider?.reasoning ?? 'low') === v ? 'active' : ''} disabled={!ready || !!busy} onClick={() => void run('reasoning', () => window.tomo.setReasoning(v))}>{label}</button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <h2>{c('Privacy & data', '隐私与数据', 'プライバシーとデータ')}</h2>
+          <div className="setting-row">
+            <div><strong>{c('Export your data', '导出数据', 'データを書き出す')}</strong><span>{c('Settings, what Tomo remembers and your chat list. Keys and identifiers are not included.', '设置、Tomo 记住的内容和对话列表。不含 Key 和身份信息。', '設定、Tomo の記憶、チャット一覧。キーと識別子は含みません。')}</span></div>
+            <button className="secondary" disabled={!!busy} onClick={() => void run('export', async () => { const p = await window.tomo.exportData(); if (p) setNotice(c(`Saved to ${p}`, `已保存到 ${p}`, `${p} に保存しました`)) })}>{c('Export…', '导出…', '書き出す…')}</button>
+          </div>
+          <div className="setting-row">
+            <div><strong>{c('Delete chats', '删除对话', 'チャットを削除')}</strong><span>{c('Removes every conversation from this computer.', '从这台电脑删除所有对话。', 'このコンピューターからすべての会話を削除します。')}</span></div>
+            <button className="danger-button" onClick={() => setConfirmDelete('chats')}>{c('Delete…', '删除…', '削除…')}</button>
+          </div>
+          <div className="setting-row">
+            <div><strong>{c('Delete everything', '删除全部数据', 'すべて削除')}</strong><span>{c('Keys, your profile, chats and the school pack. Tomo starts again from the first-run setup.', 'Key、个人资料、对话和学校能力包。Tomo 会回到初始设置。', 'キー、プロフィール、チャット、学校パック。Tomo は初回設定からやり直します。')}</span></div>
+            <button className="danger-button" onClick={() => setConfirmDelete('everything')}>{c('Delete…', '删除…', '削除…')}</button>
+          </div>
+        </section>
+
+        <section className="settings-section" data-testid="about">
+          <h2>{c('About', '关于', 'このアプリについて')}</h2>
+          <div className="setting-row">
+            <div><strong>{c('AI engine', 'AI 引擎', 'AI エンジン')}</strong><span>Hermes Agent {state.engine.version} · <span className={`status-dot ${ready ? 'ok' : ''}`} /> {state.engine.state}</span></div>
+            <div className="row-actions">
+              <button className="secondary" onClick={() => void window.tomo.diagnostics().then((d) => navigator.clipboard?.writeText(d))}>{c('Copy diagnostics', '复制诊断信息', '診断情報をコピー')}</button>
+              <button className="secondary" disabled={!!busy} onClick={() => void run('restart', () => window.tomo.restartEngine(), c('Engine restarted', 'AI 引擎已重启', 'AI エンジンを再起動しました'))}>{c('Restart', '重启', '再起動')}</button>
+            </div>
+          </div>
+        </section>
+      </div>
+      {confirmDelete && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setConfirmDelete(null)}>
+          <div className="modal" role="alertdialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
+            <h2>{confirmDelete === 'chats' ? c('Delete all chats?', '删除所有对话？', 'すべてのチャットを削除しますか？') : c('Delete everything?', '删除全部数据？', 'すべて削除しますか？')}</h2>
+            <p className="modal-intro">{c('This cannot be undone.', '此操作无法撤销。', '元に戻せません。')}</p>
+            <div className="modal-actions">
+              <button className="secondary" onClick={() => setConfirmDelete(null)}>{c('Cancel', '取消', 'キャンセル')}</button>
+              <button className="danger-button" onClick={() => { const scope = confirmDelete; setConfirmDelete(null); void run('delete', async () => { await window.tomo.deleteData(scope); if (scope === 'everything') location.reload() }) }}>{c('Delete', '删除', '削除')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  )
+}

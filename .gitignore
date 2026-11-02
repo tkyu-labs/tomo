@@ -1,0 +1,14 @@
+# local development (Hermes checkout, venv, HERMES_HOME, caches)
+.dev/
+node_modules/
+out/
+dist/
+release/
+coverage/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.DS_Store
+.env
+*.tsbuildinfo

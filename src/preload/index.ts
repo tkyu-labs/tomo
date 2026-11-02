@@ -16,6 +16,8 @@ const api: TomoApi = {
   selectPack: invoke(IPC.selectPack) as TomoApi['selectPack'],
   connectProvider: invoke(IPC.connectProvider) as TomoApi['connectProvider'],
   findBrowsers: invoke(IPC.findBrowsers) as TomoApi['findBrowsers'],
+  installChrome: invoke(IPC.installChrome) as TomoApi['installChrome'],
+  onChromeStage: (cb) => listen(IPC.chromeStage, cb),
   finishSetup: invoke(IPC.finishSetup) as TomoApi['finishSetup'],
   completeSetup: invoke(IPC.completeSetup) as TomoApi['completeSetup'],
   onSetupTask: (cb) => listen(IPC.setupTask, cb),

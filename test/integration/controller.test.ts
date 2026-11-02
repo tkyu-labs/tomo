@@ -29,6 +29,7 @@ beforeAll(async () => {
     encryptor: { isAvailable: () => true, encrypt: (s) => xor(Buffer.from(s)), decrypt: (b) => xor(b).toString() },
     packsSourceDir: join(repoRoot, 'test/fixtures/packs'),
     pluginsDir: join(repoRoot, 'plugins'),
+    runtimeDir: join(repoRoot, '.dev', 'home', 'tools'), // reuse the dev agent-browser (no download in tests)
     baseEnv: { PATH: process.env.PATH, HOME: join(dir, 'home'), TMPDIR: process.env.TMPDIR },
     emit: { chat: (s, e) => events.push([s, e]), request: () => {}, setupTask: (u) => tasks.push(u), engineState: () => {} },
   })

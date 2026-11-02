@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import { IPC, type AppInfo } from '@shared/ipc'
 import { AppController } from './app/controller'
 import { findBrowsers } from './app/browsers'
+import { installChrome } from './app/chrome-install'
 import { devRuntime } from './hermes/runtime'
 import { tomoDataDir, tomoPaths } from './paths'
 
@@ -38,6 +39,7 @@ const controller = new AppController({
   },
   packsSourceDir: packsSourceDir(),
   pluginsDir: isDev ? join(appRoot, 'plugins') : join(process.resourcesPath, 'plugins'),
+  runtimeDir: isDev && existsSync(join(appRoot, '.dev', 'home', 'tools')) ? join(appRoot, '.dev', 'home', 'tools') : undefined,
   baseEnv: process.env,
   gakuenUrl: process.env.TOMO_GAKUEN_URL,
   emit: {
@@ -90,6 +92,15 @@ handle(IPC.listPacks, () => controller.listPacks())
 handle(IPC.selectPack, (id: string | null) => controller.selectPack(id))
 handle(IPC.connectProvider, (c: Parameters<AppController['connectProvider']>[0], key?: string) => controller.connectProvider(c, key))
 handle(IPC.findBrowsers, () => findBrowsers(process.platform, app.getPath('home'), process.env))
+handle(IPC.installChrome, async () => {
+  if (process.platform !== 'darwin') return { ok: false, message: 'Only needed on macOS; Windows uses Microsoft Edge.' }
+  try {
+    await installChrome(join(app.getPath('home'), 'Applications'), join(paths.data, 'cache', 'chrome-download'), undefined, (s) => send(IPC.chromeStage, s))
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) }
+  }
+})
 handle(IPC.finishSetup, (answers: Parameters<AppController['finishSetup']>[0]) => controller.finishSetup(answers))
 handle(IPC.completeSetup, () => controller.completeSetup())
 handle(IPC.displayValues, () => controller.displayValues())

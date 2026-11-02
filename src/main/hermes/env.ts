@@ -14,6 +14,8 @@ const PASS_THROUGH = [
 export interface HermesEnvInput {
   base: Record<string, string | undefined>
   hermesHome: string
+  /** Hermes' tool runtime (agent-browser, Python, uv) — default `<hermesHome>/tools`; the app may point it at a shared copy. */
+  runtimeDir?: string
   /** Folder for npm / uv / node caches that Hermes' tools may create. */
   cacheDir: string
   /** API keys by variable name (OPENAI_API_KEY, GAKUEN_API_KEY, …). Never written to disk. */
@@ -32,7 +34,7 @@ export function buildHermesEnv(input: HermesEnvInput): Record<string, string> {
   }
   Object.assign(env, {
     HERMES_HOME: input.hermesHome,
-    HERMES_RUNTIME_DIR: join(input.hermesHome, 'tools'),
+    HERMES_RUNTIME_DIR: input.runtimeDir ?? join(input.hermesHome, 'tools'),
     HERMES_GATEWAY_LOCK_DIR: join(input.hermesHome, 'locks'),
     npm_config_cache: join(input.cacheDir, 'npm'),
     UV_CACHE_DIR: join(input.cacheDir, 'uv'),

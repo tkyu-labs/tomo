@@ -5,6 +5,8 @@
   malformed card fail loudly instead of rendering broken markup.
 * The answer mode (direct answer / information chain, chosen by the study operator in Tomo) is read from
   `$HERMES_HOME/tomo/answer-mode.json` on every turn and injected through `pre_llm_call`.
+* One browser at a time: Tomo's browser profile can be held by one Chrome only, so a chat that uses the browser
+  first closes the browser sessions of other chats (`browser_single_owner` middleware).
 """
 
 from __future__ import annotations
@@ -105,6 +107,34 @@ def pre_llm_call(**_: Any) -> dict[str, str]:
     return {"context": MODES[current_mode()]}
 
 
+def release_other_browsers(task_id: str) -> list[str]:
+    """Tomo's browser uses one persistent profile, which only one Chrome can hold. Hermes starts a browser per chat
+    (task), so before a chat uses the browser, close the local browser sessions other chats still hold (the window
+    moves to the chat that needs it; sign-ins stay in the profile). Uses Hermes' own per-session cleanup."""
+    from tools import browser_tool as bt  # Hermes, imported lazily
+    from tools.browser_tool_lifecycle import _cleanup_single_browser_session
+
+    with bt._cleanup_lock:
+        sessions = list(bt._active_sessions.items())
+    released = []
+    for key, info in sessions:
+        owner = (info or {}).get("owner_task_id") or bt._bare_task_id_for_session_key(key)
+        if owner != task_id and ((info or {}).get("features") or {}).get("local", True):
+            _cleanup_single_browser_session(key)
+            released.append(key)
+    return released
+
+
+def browser_single_owner(tool_name: str = "", args: Any = None, next_call=None, task_id: str = "", **_: Any):
+    if tool_name.startswith("browser_") and task_id:
+        try:
+            release_other_browsers(task_id)
+        except Exception:  # pragma: no cover - never block the tool because of the cleanup
+            pass
+    return next_call(args)
+
+
 def register(ctx: Any) -> None:
     ctx.register_tool("tomo_card", "tomo", SCHEMA, tomo_card, description=SCHEMA["description"], emoji="🗂")
     ctx.register_hook("pre_llm_call", pre_llm_call)
+    ctx.register_middleware("tool_execution", browser_single_owner)

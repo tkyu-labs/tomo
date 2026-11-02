@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
@@ -31,6 +32,8 @@ export interface ControllerOptions {
   packsSourceDir: string
   /** Folder holding Tomo's Hermes plugins (`plugins/tomo-privacy`, …). */
   pluginsDir: string
+  /** Hermes tool runtime (agent-browser, …); default `<hermesHome>/tools`. Development reuses `.dev/home/tools`. */
+  runtimeDir?: string
   /** Base environment for the gateway (the app's own environment). */
   baseEnv: Record<string, string | undefined>
   gakuenUrl?: string
@@ -157,9 +160,10 @@ export class AppController {
       }
     }
     try {
-      await step('engine', () => {
+      await step('engine', async () => {
         if (!existsSync(this.opts.runtime.python)) throw new Error('The AI engine is missing from this installation.')
-        return `Hermes ${HERMES_VERSION}`
+        const browser = await this.ensureBrowserRuntime()
+        return `Hermes ${HERMES_VERSION}${browser ? ' · browser tools ready' : ''}`
       })
       const pack = this.installedPack()
       await step('settings', () => {
@@ -215,6 +219,25 @@ export class AppController {
   }
 
   // ------------------------------------------------------------------ engine
+  private runtimeDir(): string {
+    return this.opts.runtimeDir ?? join(this.opts.paths.hermesHome, 'tools')
+  }
+
+  /** agent-browser lives in Hermes' tool runtime; install it with Hermes' own package manager when missing. */
+  async ensureBrowserRuntime(): Promise<boolean> {
+    const dir = this.runtimeDir()
+    const has = () => existsSync(dir) && readdirSync(dir).some((n) => n.startsWith('agent-browser-'))
+    if (has()) return true
+    const env = buildHermesEnv({ base: this.opts.baseEnv, hermesHome: this.opts.paths.hermesHome, runtimeDir: dir, cacheDir: join(this.opts.paths.data, 'cache') })
+    mkdirSync(this.opts.paths.hermesHome, { recursive: true })
+    await new Promise<void>((resolve) => {
+      const child = spawn(this.opts.runtime.python, ['-m', 'hermes_cli.main', 'pm', 'install', 'agent-browser'], { cwd: this.opts.runtime.root, env, stdio: 'ignore', windowsHide: true })
+      child.on('exit', () => resolve())
+      child.on('error', () => resolve())
+    })
+    return has() // without it Tomo still works; only web tasks are off
+  }
+
   async startEngine(restart = false): Promise<void> {
     const moved = evacuateDotenv(this.opts.paths.hermesHome)
     if (Object.keys(moved).length) this.secrets.update((d) => { Object.assign(d.keys, moved) })
@@ -225,6 +248,7 @@ export class AppController {
     const env = buildHermesEnv({
       base: this.opts.baseEnv,
       hermesHome: this.opts.paths.hermesHome,
+      runtimeDir: this.runtimeDir(),
       cacheDir: join(this.opts.paths.data, 'cache'),
       keys: secrets.keys,
       privatePayload: privatePayload(secrets.identifiers, pack),

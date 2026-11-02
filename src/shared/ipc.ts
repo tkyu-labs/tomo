@@ -108,6 +108,9 @@ export interface TomoApi {
   selectPack(id: string | null): Promise<void>
   connectProvider(choice: ProviderChoice, key?: string): Promise<void>
   findBrowsers(): Promise<BrowserInfo[]>
+  /** macOS only: download Google Chrome, verify Google's signature, copy to ~/Applications. */
+  installChrome(): Promise<{ ok: boolean; message?: string }>
+  onChromeStage(cb: (stage: string) => void): () => void
   finishSetup(answers: Answers): Promise<{ ok: boolean; failed?: FinishTask; message?: string }>
   completeSetup(): Promise<void>
   onSetupTask(cb: (u: TaskUpdate) => void): () => void
@@ -146,6 +149,8 @@ export const IPC = {
   selectPack: 'tomo:select-pack',
   connectProvider: 'tomo:connect-provider',
   findBrowsers: 'tomo:find-browsers',
+  installChrome: 'tomo:install-chrome',
+  chromeStage: 'tomo:chrome-stage',
   finishSetup: 'tomo:finish-setup',
   completeSetup: 'tomo:complete-setup',
   setupTask: 'tomo:setup-task',

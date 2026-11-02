@@ -23,6 +23,14 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
   const [gakuenKey, setGakuenKey] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [browsers, setBrowsers] = useState<BrowserInfo[] | null>(null)
+  const [chrome, setChrome] = useState<{ stage?: string; error?: string; skipped?: boolean }>({})
+  useEffect(() => window.tomo.onChromeStage((stage) => setChrome((c) => ({ ...c, stage }))), [])
+  const installChrome = async () => {
+    setChrome({ stage: 'download' })
+    const res = await window.tomo.installChrome()
+    setChrome(res.ok ? {} : { error: res.message })
+    setBrowsers(await window.tomo.findBrowsers())
+  }
   const [tasks, setTasks] = useState<Record<FinishTask, { state: TaskState; detail?: string }>>(
     Object.fromEntries(FINISH_TASKS.map((t) => [t, { state: 'pending' }])) as Record<FinishTask, { state: TaskState }>,
   )
@@ -86,7 +94,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
 
   const finishDone = finishResult?.ok === true
   const canContinue =
-    (step !== STEP.ai || !!state.provider) && (step !== STEP.finish || finishDone)
+    (step !== STEP.ai || !!state.provider) && (step !== STEP.finish || finishDone) && !(step === STEP.browser && chrome.stage)
 
   return (
     <main className="standalone-page onboarding-page">
@@ -259,8 +267,20 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
                     <span className="warn"><Icon name="info" size={14} /></span>
                     <div>
                       <strong>Google Chrome</strong>
-                      <small>{c('Not found. Web tasks stay off until Chrome or Edge is installed.', '未找到。安装 Chrome 或 Edge 之前，网页操作不可用。', '見つかりません。Chrome か Edge を入れるまで Web 操作はオフです。')}</small>
+                      <small>
+                        {chrome.stage === 'download' && c('Downloading from Google…', '正在从 Google 下载…', 'Google からダウンロードしています…')}
+                        {chrome.stage === 'verify' && c("Checking Google's signature…", '正在校验 Google 的签名…', 'Google の署名を確認しています…')}
+                        {chrome.stage === 'copy' && c('Installing to your Applications folder…', '正在安装到你的“应用程序”文件夹…', 'アプリケーションフォルダーにインストールしています…')}
+                        {!chrome.stage && !chrome.skipped && (chrome.error ?? c('Not installed. Tomo can install it for you (no administrator password needed).', '尚未安装。Tomo 可以帮你安装（无需管理员密码）。', '未インストールです。Tomo がインストールできます（管理者パスワード不要）。'))}
+                        {!chrome.stage && chrome.skipped && c('Skipped · web tasks are off until a browser is installed', '已跳过 · 安装浏览器之前网页操作不可用', 'スキップしました · ブラウザを入れるまで Web 操作はオフです')}
+                      </small>
                     </div>
+                    {chrome.stage ? <span className="spinner" /> : (
+                      <div className="row-actions">
+                        {!chrome.skipped && <button className="secondary" onClick={() => setChrome({ skipped: true })}>{c('Skip', '跳过', 'スキップ')}</button>}
+                        {navigator.userAgent.includes('Mac') && <button className="primary" data-testid="install-chrome" onClick={() => void installChrome()}>{c('Install Chrome', '安装 Chrome', 'Chrome をインストール')}</button>}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

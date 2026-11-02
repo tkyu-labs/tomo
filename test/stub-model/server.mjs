@@ -11,6 +11,9 @@ import { createServer } from 'node:http'
 
 export async function startStubModel({ port = 0 } = {}) {
   const requests = []
+  // Optional scripted turn plan for main requests (requests that offer tools): each entry is
+  // { tool, args } or { text }; consumed one per request. Title / auxiliary calls never consume it.
+  const script = []
   const server = createServer(async (req, res) => {
     let body = ''
     for await (const chunk of req) body += chunk
@@ -20,6 +23,10 @@ export async function startStubModel({ port = 0 } = {}) {
     if (req.method === 'POST' && req.url?.endsWith('/chat/completions')) {
       const payload = JSON.parse(body || '{}')
       requests.push({ url: req.url, headers: req.headers, body: payload, raw: body })
+      if (script.length && (payload.tools ?? []).length) {
+        const step = script.shift()
+        return complete(res, payload, step.tool ? { tool: { name: step.tool, args: step.args ?? {} } } : { text: step.text })
+      }
       return complete(res, payload)
     }
     res.writeHead(404).end()
@@ -29,6 +36,7 @@ export async function startStubModel({ port = 0 } = {}) {
   return {
     url: `http://127.0.0.1:${actual}/v1`,
     requests,
+    script,
     close: () => new Promise((r) => server.close(r)),
   }
 }
@@ -61,8 +69,8 @@ function decide(payload) {
   return { text: `Stub answer: ${userText.slice(0, 200)}` }
 }
 
-function complete(res, payload) {
-  const d = decide(payload)
+function complete(res, payload, forced) {
+  const d = forced ?? decide(payload)
   const id = 'chatcmpl-stub-' + Math.random().toString(16).slice(2)
   const created = Math.floor(Date.now() / 1000)
   const model = payload.model ?? 'stub-model'

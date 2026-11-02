@@ -96,7 +96,7 @@ export function App() {
     document.title = t ? `${t}${sep}${APP_NAME}` : APP_NAME
   }, [current?.title])
 
-  const send = async (text: string) => {
+  const send = async (text: string, topic?: string) => {
     let id = view.kind === 'chat' ? view.sessionId : undefined
     if (!id) {
       id = await window.tomo.createSession()
@@ -109,7 +109,7 @@ export function App() {
       return { ...all, [sid]: { ...s, busy: true, messages: [...s.messages, { role: 'user', text }, { role: 'assistant', text: '', tools: [], streaming: true }] } }
     })
     try {
-      await window.tomo.send(sid, text)
+      await window.tomo.send(sid, text, topic)
       loadRows()
     } catch (e) {
       setSessions((all) => ({ ...all, [sid]: { ...all[sid]!, busy: false, messages: [...all[sid]!.messages, { role: 'error', text: e instanceof Error ? e.message : String(e) }] } }))
@@ -138,7 +138,7 @@ export function App() {
                 topicId={view.topicId}
                 pack={state.pack}
                 values={values}
-                onSend={(t) => void send(t)}
+                onSend={(t, topic) => void send(t, topic)}
                 onStop={() => view.sessionId && void window.tomo.interrupt(view.sessionId)}
                 modelLabel={state.provider?.model ?? ''}
                 onOpenModel={() => setView({ kind: 'settings' })}

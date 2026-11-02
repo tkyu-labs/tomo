@@ -83,6 +83,14 @@ try {
   if (REAL) console.log('REAL provider test:', report.finish.at(-1), '· answer chars:', report.answer.length)
   report.leak = stub.requests.some((r) => /Lin Mei|23B0001|リン ?メイ/.test(r.raw))
   await audit('en:chat')
+  if (!REAL) {
+    // a card from the tomo plugin renders in the conversation, with placeholders shown as real values
+    await type('[data-testid=composer]', 'TOOL:tomo_card ARGS:{"kind":"steps","title":"For {{FULL_NAME}}","data":{"steps":[{"title":"Open the portal","detail":"Sign in yourself"}]}}')
+    await click('[data-testid=send]')
+    await app.waitFor(`document.querySelector('[data-testid=tomo-card][data-kind=steps]')`, 60000)
+    report.card = await app.evaluate(`document.querySelector('[data-testid=tomo-card]').textContent`)
+    await audit('en:card')
+  }
 
   // the same screens in zh and ja
   for (const loc of ['zh', 'ja']) {
@@ -97,7 +105,7 @@ try {
   report.memory = await app.evaluate(`[...document.querySelectorAll('[data-testid=memory-entry]')].map((e) => e.textContent)`)
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.finish.every((f) => f.endsWith(':done')) && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei')) && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.finish.every((f) => f.endsWith(':done')) && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei')) && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

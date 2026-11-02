@@ -96,7 +96,7 @@ handle(IPC.displayValues, () => controller.displayValues())
 handle(IPC.listSessions, () => controller.listSessions())
 handle(IPC.createSession, () => controller.createSession())
 handle(IPC.history, (id: string) => controller.history(id))
-handle(IPC.send, (id: string, text: string) => controller.send(id, text))
+handle(IPC.send, (id: string, text: string, topic?: string) => controller.send(id, text, topic))
 handle(IPC.interrupt, (id: string) => controller.interrupt(id))
 handle(IPC.respond, (id: string, result: unknown) => controller.respond(id, result))
 handle(IPC.listModels, () => controller.listModels())
@@ -110,6 +110,11 @@ handle(IPC.exportData, async () => {
   return res.canceled || !res.filePath ? null : controller.exportData(res.filePath)
 })
 handle(IPC.deleteData, (scope: 'chats' | 'everything') => controller.deleteData(scope))
+handle(IPC.setAnswerMode, (m: Parameters<AppController['setAnswerMode']>[0]) => controller.setAnswerMode(m))
+handle(IPC.exportStudyLog, async () => {
+  const res = await dialog.showSaveDialog(win!, { defaultPath: 'tomo-study-log.jsonl' })
+  return res.canceled || !res.filePath ? null : { path: res.filePath, records: controller.exportStudyLog(res.filePath) }
+})
 
 app.whenReady().then(async () => {
   win = createWindow()

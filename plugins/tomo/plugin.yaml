@@ -1,0 +1,8 @@
+name: tomo
+version: 0.1.0
+description: Tomo answer modes and structured answer cards (course tables, steps, sources, information chains).
+author: Tomo contributors
+provides_tools:
+  - tomo_card
+provides_hooks:
+  - pre_llm_call

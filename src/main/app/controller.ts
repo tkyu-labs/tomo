@@ -16,9 +16,10 @@ import type { TomoPaths } from '../paths'
 import { SecretStore, type Encryptor } from '../secrets/store'
 import { evacuateDotenv } from '../setup/home'
 import { listModels, setModel, setReasoning } from '../setup/model'
-import { privatePayload, writeProfile } from '../setup/profile'
+import { privatePayload, writeAnswerMode, writeProfile } from '../setup/profile'
 import { PROVIDER_KEY_ENV, providerConfig } from '../setup/providers'
 import { SettingsFile, type Settings } from './settings'
+import { StudyLog } from './study-log'
 
 export const HERMES_VERSION = '0.21.7'
 
@@ -56,11 +57,22 @@ export class AppController {
   private masker = new Masker([])
   private pendingRequests = new Map<string, Pending>()
   private requestSeq = 0
+  readonly study: StudyLog
 
   constructor(private readonly opts: ControllerOptions) {
     mkdirSync(opts.paths.data, { recursive: true })
     this.settings = new SettingsFile(join(opts.paths.data, 'settings.json'))
     this.secrets = new SecretStore(opts.paths.secretStore, opts.encryptor)
+    let participant = this.settings.read().participantId
+    if (!participant) {
+      participant = StudyLog.newParticipantId()
+      const id = participant
+      this.settings.update((s) => { s.participantId = id })
+    }
+    this.study = new StudyLog(join(opts.paths.data, 'study', 'log.jsonl'), participant, () => {
+      const s = this.settings.read()
+      return { mode: s.answerMode, pack: s.packId ?? null }
+    })
   }
 
   // ------------------------------------------------------------------ state
@@ -95,8 +107,14 @@ export class AppController {
     this.settings.update((s) => { s.prefs = { ...s.prefs, ...prefs } })
   }
 
+  /** Chosen by the study operator; the tomo plugin reads it on every turn. */
   setAnswerMode(mode: AnswerMode): void {
     this.settings.update((s) => { s.answerMode = mode })
+    writeAnswerMode(this.opts.paths.hermesHome, mode)
+  }
+
+  exportStudyLog(target: string): number {
+    return this.study.export(target)
   }
 
   // ------------------------------------------------------------------ first run
@@ -180,7 +198,7 @@ export class AppController {
         if (entry) full[q.id] = entry.kind === 'name' ? { name: entry.values[0] ?? '', furigana: entry.values[1] ?? '' } : entry.values[0]
       }
     }
-    const res = writeProfile({ hermesHome: this.opts.paths.hermesHome, pluginsSourceDir: this.opts.pluginsDir, pack, provider: s.provider!, answers: full })
+    const res = writeProfile({ hermesHome: this.opts.paths.hermesHome, pluginsSourceDir: this.opts.pluginsDir, pack, provider: s.provider!, answers: full, answerMode: s.answerMode })
     return `${res.userMdEntries.length} entries · ${res.identifiers.map((i) => `{{${i.name}}}`).join(', ') || 'no identifiers'}`
   }
 
@@ -245,7 +263,9 @@ export class AppController {
       return
     }
     const ev = toTurnEvent(e)
-    if (ev) this.opts.emit.chat(raw.session_id, ev)
+    if (!ev) return
+    this.study.event(raw.session_id, ev)
+    this.opts.emit.chat(raw.session_id, ev)
   }
 
   // ------------------------------------------------------------------ server → client requests
@@ -301,7 +321,8 @@ export class AppController {
       .filter((m) => m.role !== 'assistant' || m.text.trim())
   }
 
-  async send(sessionId: string, text: string): Promise<void> {
+  async send(sessionId: string, text: string, topic?: string): Promise<void> {
+    this.study.turnStarted(sessionId, topic ?? null)
     await this.rpcClient.submit(sessionId, text) // masked inside HermesClient
   }
 

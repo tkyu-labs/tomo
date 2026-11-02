@@ -8,6 +8,10 @@ export interface ConfigInput {
   plugins?: string[]
 }
 
+// Only what a student assistant needs; no code execution (Hermes issue #139062), no subagents, cron, kanban,
+// image generation or text-to-speech.
+const TOOLSETS = ['web', 'browser', 'file', 'terminal', 'skills', 'memory', 'todo', 'clarify', 'vision', 'session_search', 'tomo']
+
 /**
  * Tomo's config.yaml for Hermes. Hermes deep-merges its own
  * defaults (config.py), so only what Tomo means is written. Every switch here has a reason in the decision docs.
@@ -17,17 +21,23 @@ export function buildHermesConfig(input: ConfigInput): Record<string, unknown> {
   const config: Record<string, unknown> = {
     model,
     ...(custom_providers ? { custom_providers } : {}),
-    // Only what a student assistant needs; no code execution (Hermes issue #139062), no subagents, cron, kanban,
-    // image generation or text-to-speech.
-    toolsets: ['web', 'browser', 'file', 'terminal', 'skills', 'memory', 'todo', 'clarify', 'vision', 'session_search'],
-    agent: { reasoning_effort: REASONING_EFFORT[input.provider.reasoning ?? 'low'] },
+    // The gateway reads platform_toolsets.cli (tui_gateway/methods_profiles.py:674 `_load_enabled_toolsets`); the
+    // top-level list is kept for the CLI.
+    toolsets: TOOLSETS,
+    platform_toolsets: { cli: TOOLSETS },
+    // Few tools: keep every one visible (plugin tools such as tomo_card are otherwise deferred behind tool_search).
+    tools: { tool_search: { enabled: 'off' } },
+    agent: {
+      reasoning_effort: REASONING_EFFORT[input.provider.reasoning ?? 'low'],
+      disabled_toolsets: ['project'], // Hermes Desktop workspaces; not part of Tomo
+    },
     memory: {
       memory_enabled: true,
       user_profile_enabled: true,
       user_char_limit: 3000, // Hatch fills at most 60 % (tomo-packs validator)
     },
     skills: { external_dirs: input.packSkillsDir ? [input.packSkillsDir] : [] },
-    plugins: { enabled: input.plugins ?? ['tomo-privacy'] },
+    plugins: { enabled: input.plugins ?? ['tomo-privacy', 'tomo'] },
     browser: {
       backend: 'off', // step-wise browser_* tools; Browser Use mode (browser_exec) bypasses argument masking
       headed: true, // the student sees the window and signs in themselves

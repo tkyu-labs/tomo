@@ -12,6 +12,8 @@ export interface Settings {
   /** Hatch answers without identifier questions (those live only in the secret store). */
   answers: Answers
   answerMode: AnswerMode
+  /** Random pseudonymous id for the local study log. */
+  participantId?: string
   /** GakuenAI relay URL for tester builds (set by the installer or TOMO_GAKUEN_URL). */
   gakuenUrl?: string
 }

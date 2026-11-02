@@ -1,4 +1,6 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { AnswerMode } from '@shared/ipc'
 import { identifiersFrom, renderUserMd, userMemoryEntries } from '@shared/pack/hatch'
 import type { Answers } from '@shared/pack/types'
 import type { IdentifierEntry } from '@shared/privacy/masker'
@@ -8,7 +10,7 @@ import { writeHermesHome } from './home'
 import type { ProviderSelection } from './providers'
 import { buildSoul } from './soul'
 
-export const TOMO_PLUGINS = ['tomo-privacy']
+export const TOMO_PLUGINS = ['tomo-privacy', 'tomo']
 
 export interface ProfileInput {
   hermesHome: string
@@ -16,6 +18,7 @@ export interface ProfileInput {
   pack?: LoadedPack
   provider: ProviderSelection
   answers: Answers
+  answerMode?: AnswerMode
 }
 
 export interface ProfileResult {
@@ -37,6 +40,7 @@ export function writeProfile(input: ProfileInput): ProfileResult {
     input.pluginsSourceDir,
     TOMO_PLUGINS,
   )
+  writeAnswerMode(input.hermesHome, input.answerMode ?? 'direct')
   return { identifiers, userMdEntries }
 }
 
@@ -50,3 +54,9 @@ export function privatePayload(identifiers: IdentifierEntry[], pack?: LoadedPack
 }
 
 export const pluginsDir = (appRoot: string) => join(appRoot, 'plugins')
+
+/** Read by the `tomo` plugin on every turn (pre_llm_call), so a change applies without restarting the engine. */
+export function writeAnswerMode(hermesHome: string, mode: AnswerMode): void {
+  mkdirSync(join(hermesHome, 'tomo'), { recursive: true })
+  writeFileSync(join(hermesHome, 'tomo', 'answer-mode.json'), JSON.stringify({ mode }))
+}

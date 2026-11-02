@@ -118,7 +118,7 @@ export interface TomoApi {
   listSessions(): Promise<SessionRow[]>
   createSession(): Promise<string>
   history(sessionId: string): Promise<HistoryMessage[]>
-  send(sessionId: string, text: string): Promise<void>
+  send(sessionId: string, text: string, topic?: string): Promise<void>
   interrupt(sessionId: string): Promise<void>
   onChatEvent(cb: (sessionId: string, e: ChatEvent) => void): () => void
   onEngineRequest(cb: (r: EngineRequest) => void): () => void
@@ -133,6 +133,8 @@ export interface TomoApi {
   diagnostics(): Promise<string>
   exportData(): Promise<string | null>
   deleteData(scope: 'chats' | 'everything'): Promise<void>
+  setAnswerMode(mode: AnswerMode): Promise<void>
+  exportStudyLog(): Promise<{ path: string; records: number } | null>
   onEngineState(cb: (state: EngineState) => void): () => void
 }
 
@@ -165,4 +167,6 @@ export const IPC = {
   exportData: 'tomo:export-data',
   deleteData: 'tomo:delete-data',
   engineState: 'tomo:engine-state',
+  setAnswerMode: 'tomo:set-answer-mode',
+  exportStudyLog: 'tomo:export-study-log',
 } as const

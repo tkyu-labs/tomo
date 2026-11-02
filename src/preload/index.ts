@@ -37,6 +37,8 @@ const api: TomoApi = {
   exportData: invoke(IPC.exportData) as TomoApi['exportData'],
   deleteData: invoke(IPC.deleteData) as TomoApi['deleteData'],
   onEngineState: (cb) => listen(IPC.engineState, cb),
+  setAnswerMode: invoke(IPC.setAnswerMode) as TomoApi['setAnswerMode'],
+  exportStudyLog: invoke(IPC.exportStudyLog) as TomoApi['exportStudyLog'],
 }
 
 contextBridge.exposeInMainWorld('tomo', api)

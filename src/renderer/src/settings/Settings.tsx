@@ -94,6 +94,22 @@ export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh
           </div>
         </section>
 
+        <section className="settings-section" data-testid="study">
+          <h2>{c('User study', '用户实验', 'ユーザー調査')}</h2>
+          <div className="setting-row">
+            <div><strong>{c('Answer mode', '回答模式', '回答モード')}</strong><span>{c('Set by the study operator. Information chain shows where the answer is and leaves the last step to you.', '由实验负责人设置。“信息链”会告诉你答案在哪里、怎么找，最后一步由你完成。', '調査担当者が設定します。「情報チェーン」は答えの場所と調べ方を示し、最後の一歩はあなたに任せます。')}</span></div>
+            <div className="segmented" role="radiogroup" aria-label={c('Answer mode', '回答模式', '回答モード')}>
+              {([['direct', c('Direct answer', '直接回答', '直接回答')], ['chain', c('Information chain', '信息链', '情報チェーン')]] as const).map(([v, label]) => (
+                <button key={v} role="radio" data-testid={`mode-${v}`} aria-checked={state.answerMode === v} className={state.answerMode === v ? 'active' : ''} onClick={() => void run('mode', () => window.tomo.setAnswerMode(v))}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="setting-row">
+            <div><strong>{c('Study log', '实验日志', '調査ログ')}</strong><span>{c('Answer mode, topic, tool calls, cards and times per question. No message text; stays on this computer until you export it.', '每个问题的回答模式、主题、工具调用、卡片和时间。不含消息内容；导出前只保存在这台电脑上。', '質問ごとの回答モード、トピック、ツール呼び出し、カード、時刻。メッセージ本文は含まず、書き出すまでこの端末に保存されます。')}</span></div>
+            <button className="secondary" disabled={!!busy} onClick={() => void run('study', async () => { const r = await window.tomo.exportStudyLog(); if (r) setNotice(c(`${r.records} records saved to ${r.path}`, `已保存 ${r.records} 条记录到 ${r.path}`, `${r.records} 件を ${r.path} に保存しました`)) })}>{c('Export…', '导出…', '書き出す…')}</button>
+          </div>
+        </section>
+
         <section className="settings-section" data-testid="about">
           <h2>{c('About', '关于', 'このアプリについて')}</h2>
           <div className="setting-row">

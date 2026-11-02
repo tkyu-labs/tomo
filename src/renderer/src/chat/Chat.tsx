@@ -5,11 +5,12 @@ import { StreamUnmasker, unmask } from '@shared/privacy/masker'
 import { useCopy, useLocale } from '../i18n'
 import { Icon, isIconName } from '../ui/Icon'
 import { Markdown } from './Markdown'
+import { Card, type CardData } from './Card'
 
 export interface ToolStep { id: string; name: string; done: boolean; seconds?: number | null }
 export type Msg =
   | { role: 'user'; text: string }
-  | { role: 'assistant'; text: string; tools: ToolStep[]; streaming: boolean }
+  | { role: 'assistant'; text: string; tools: ToolStep[]; streaming: boolean; cards?: CardData[] }
   | { role: 'error'; text: string }
   | { role: 'stopped' }
 
@@ -23,7 +24,7 @@ export function applyEvent(s: ChatSession, e: ChatEvent, unmasker: StreamUnmaske
   const current = last && last.role === 'assistant' && last.streaming ? { ...last, tools: [...last.tools] } : null
   const ensure = () => {
     if (current) return current
-    const fresh = { role: 'assistant' as const, text: '', tools: [] as ToolStep[], streaming: true }
+    const fresh: Extract<Msg, { role: 'assistant' }> = { role: 'assistant', text: '', tools: [], streaming: true }
     msgs.push(fresh)
     return fresh
   }
@@ -37,7 +38,9 @@ export function applyEvent(s: ChatSession, e: ChatEvent, unmasker: StreamUnmaske
     }
     case 'tool.start': {
       const m = ensure()
-      m.tools.push({ id: e.toolId, name: e.name, done: false })
+      if (e.name === 'tomo_card' && e.args && typeof e.args.kind === 'string') {
+        m.cards = [...(m.cards ?? []), { kind: e.args.kind, title: e.args.title as string | undefined, data: (e.args.data ?? {}) as Record<string, unknown> }]
+      } else m.tools.push({ id: e.toolId, name: e.name, done: false })
       break
     }
     case 'tool.complete': {
@@ -70,7 +73,7 @@ export function Chat({ session, topicId, pack, values, onSend, onStop, modelLabe
   topicId?: string
   pack?: PackSummary
   values: Record<string, string>
-  onSend: (text: string) => void
+  onSend: (text: string, topic?: string) => void
   onStop: () => void
   modelLabel: string
   onOpenModel: () => void
@@ -92,7 +95,7 @@ export function Chat({ session, topicId, pack, values, onSend, onStop, modelLabe
     const text = message.trim()
     if (!text || busy) return
     setMessage('')
-    onSend(text)
+    onSend(text, topicId)
   }
 
   const toolLabel = (name: string) => {
@@ -154,7 +157,8 @@ export function Chat({ session, topicId, pack, values, onSend, onStop, modelLabe
                     <ul>{m.tools.map((t) => <li key={t.id}><code>{t.name}</code>{t.seconds != null ? ` · ${t.seconds.toFixed(1)} s` : ''}</li>)}</ul>
                   </details>
                 )}
-                {m.text ? <div className="answer-body" data-testid="answer-text"><Markdown text={m.text} /></div> : m.streaming ? <p className="working-text">{c('Thinking…', '思考中…', '考えています…')}</p> : null}
+                {m.text ? <div className="answer-body" data-testid="answer-text"><Markdown text={m.text} /></div> : m.streaming && !m.cards?.length ? <p className="working-text">{c('Thinking…', '思考中…', '考えています…')}</p> : null}
+                {m.cards?.map((card, j) => <Card key={j} card={card} values={values} />)}
               </div>
             </div>
           ) : m.role === 'error' ? (

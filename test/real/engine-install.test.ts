@@ -34,7 +34,7 @@ describe.skipIf(!process.env.TOMO_NETWORK_TESTS || !existsSync(uv))('engine inst
       expect(stages.at(-1)).toMatchObject({ stage: 'done', percent: 100 })
       expect(rt.python.startsWith(join(data, 'engine'))).toBe(true)
       // the installed engine runs
-      const stub = await startStubModel()
+      const stub = (await startStubModel()) as { url: string; requests: { raw: string }[]; close(): Promise<void> }
       mkdirSync(hermesHome, { recursive: true }); writeFileSync(join(hermesHome, 'config.yaml'), stubConfig(stub.url))
       const hermes = new HermesProcess({ runtime: rt, env: buildHermesEnv({ base, hermesHome, cacheDir: join(data, 'cache'), keys: { TOMO_STUB_KEY: 'x' } }) })
       try {
@@ -43,6 +43,11 @@ describe.skipIf(!process.env.TOMO_NETWORK_TESTS || !existsSync(uv))('engine inst
         const { session_id } = await client.createSession()
         const events = await client.runTurn(session_id, 'Hello from a fresh install')
         expect(events.filter((e) => e.kind === 'delta').map((e) => (e as { text: string }).text).join('')).toContain('Stub answer: Hello from a fresh install')
+        // the terminal tool works with this engine (on Windows it needs Git Bash, installed by the engine step)
+        const { session_id: s2 } = await client.createSession()
+        await client.runTurn(s2, 'TOOL:terminal ARGS:{"command":"echo tomo-terminal-ok"}')
+        const toolOut = stub.requests.map((r: { raw: string }) => r.raw).find((r: string) => r.includes('"role":"tool"') && r.includes('tomo-terminal-ok'))
+        expect(toolOut).toBeTruthy()
       } finally {
         await hermes.stopAndWait(); await stub.close()
       }

@@ -37,9 +37,10 @@ YAML
 fi
 
 ( cd "$HERMES_SRC" && uv sync --frozen --python "$HERMES_PYTHON" --no-dev -q )
-"$HERMES_VENV/bin/python" -c "import tui_gateway.entry" 
+py="$HERMES_VENV/bin/python"; [ -x "$py" ] || py="$HERMES_VENV/Scripts/python.exe" # macOS / Windows
+( cd "$HERMES_SRC" && "$py" -c "import tui_gateway.entry" )
 # Separate small environment for the Tomo plugin unit tests (pytest), same Python.
-if [ ! -x "$TOMO_DEV_DIR/test-venv/bin/python" ]; then
+if [ ! -x "$TOMO_DEV_DIR/test-venv/bin/python" ] && [ ! -x "$TOMO_DEV_DIR/test-venv/Scripts/python.exe" ]; then
   uv venv -q "$TOMO_DEV_DIR/test-venv" --python "$HERMES_PYTHON"
   uv pip install -q -p "$TOMO_DEV_DIR/test-venv" pytest
 fi

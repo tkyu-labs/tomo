@@ -17,7 +17,7 @@
     "test:watch": "vitest",
     "test:real": "TOMO_REAL_MODEL=1 vitest run test/real",
     "test:e2e": "electron-vite build && node test/e2e/smoke.mjs && node test/e2e/first-run.mjs",
-    "test:py": ".dev/test-venv/bin/python -m pytest -q plugins/tests",
+    "test:py": "node scripts/run-pytest.mjs",
     "dist:mac": "node scripts/build-engine.mjs && scripts/prepare-packs.sh && electron-vite build && electron-builder --mac -c.electronDownload.cache=.dev/cache/electron",
     "dist:win": "node scripts/build-engine.mjs && bash scripts/prepare-packs.sh && electron-vite build && electron-builder --win -c.electronDownload.cache=.dev/cache/electron"
   },

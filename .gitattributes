@@ -1,0 +1,3 @@
+# Shell scripts and env files must keep LF on Windows checkouts (Git Bash runs them).
+*.sh text eol=lf
+*.env text eol=lf

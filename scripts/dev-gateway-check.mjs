@@ -21,7 +21,8 @@ const env = {
   UV_PYTHON_INSTALL_DIR: join(dev, 'python'),
   TMPDIR: process.env.TMPDIR,
 }
-const proc = spawn(join(dev, 'hermes-venv/bin/python'), ['-m', 'tui_gateway.entry'], {
+const python = process.platform === 'win32' ? join(dev, 'hermes-venv', 'Scripts', 'python.exe') : join(dev, 'hermes-venv', 'bin', 'python')
+const proc = spawn(python, ['-m', 'tui_gateway.entry'], {
   cwd: join(dev, 'hermes-src'), env, stdio: ['pipe', 'pipe', 'pipe'],
 })
 let buf = '', stderr = ''

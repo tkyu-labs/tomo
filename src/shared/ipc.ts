@@ -34,6 +34,14 @@ export type ChatGptLoginEvent =
   | { event: 'expired' }
   | { event: 'error'; message: string }
 
+export interface UpdateStatus {
+  state: 'idle' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'
+  current: string
+  available?: string
+  percent?: number
+  error?: string
+}
+
 export interface PackSummary {
   id: string
   manifest: PackManifest
@@ -155,6 +163,10 @@ export interface TomoApi {
   exportStudyLog(): Promise<{ path: string; records: number } | null>
   onEngineState(cb: (state: EngineState) => void): () => void
   onEngineProgress(cb: (p: EngineProgress) => void): () => void
+  updateStatus(): Promise<UpdateStatus>
+  checkForUpdates(): Promise<void>
+  installUpdate(): Promise<void>
+  onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
   retryEnginePrep(): Promise<void>
 }
 
@@ -194,6 +206,10 @@ export const IPC = {
   deleteData: 'tomo:delete-data',
   engineState: 'tomo:engine-state',
   engineProgress: 'tomo:engine-progress',
+  updateStatus: 'tomo:update-status',
+  checkForUpdates: 'tomo:check-updates',
+  installUpdate: 'tomo:install-update',
+  updateEvent: 'tomo:update-event',
   retryEnginePrep: 'tomo:retry-engine-prep',
   setAnswerMode: 'tomo:set-answer-mode',
   exportStudyLog: 'tomo:export-study-log',

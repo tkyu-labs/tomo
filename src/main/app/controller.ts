@@ -44,6 +44,8 @@ export interface ControllerOptions {
   /** Base environment for the gateway (the app's own environment). */
   baseEnv: Record<string, string | undefined>
   gakuenUrl?: string
+  /** Recorded in the study log. */
+  appVersion?: string
   /** UI sinks */
   emit: {
     chat(sessionId: string, e: ChatEvent): void
@@ -85,7 +87,7 @@ export class AppController {
     if (opts.engine && !opts.engine.installed()) void this.prepareEngine().catch(() => undefined)
     this.study = new StudyLog(join(opts.paths.data, 'study', 'log.jsonl'), participant, () => {
       const s = this.settings.read()
-      return { mode: s.answerMode, pack: s.packId ?? null }
+      return { mode: s.answerMode, pack: s.packId ?? null, appVersion: opts.appVersion }
     })
   }
 

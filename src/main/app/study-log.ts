@@ -10,6 +10,7 @@ import type { AnswerMode, ChatEvent } from '@shared/ipc'
  */
 export interface StudyRecord {
   ts: string
+  app_version: string
   participant: string
   session: string
   turn: number
@@ -33,7 +34,7 @@ export class StudyLog {
   constructor(
     private readonly file: string,
     private readonly participant: string,
-    private readonly context: () => { mode: AnswerMode; pack: string | null },
+    private readonly context: () => { mode: AnswerMode; pack: string | null; appVersion?: string },
   ) {}
 
   static newParticipantId(): string {
@@ -67,6 +68,7 @@ export class StudyLog {
     const ctx = this.context()
     const rec: StudyRecord = {
       ts: new Date(now).toISOString(),
+      app_version: ctx.appVersion ?? 'dev',
       participant: this.participant,
       session: this.pseudonym(sessionId),
       turn,

@@ -1,5 +1,6 @@
-# Tomo app packaging. Unsigned builds for testing: `npm run dist:mac` (macOS) / `npm run dist:win` (on Windows).
-# Signing and notarisation are configured on the release machine (see BUILDING.md), never in this file.
+# Tomo app packaging. Local builds are unsigned (`npm run dist:mac` / `npm run dist:win`). Releases are built by
+# .github/workflows/release.yml on a version tag; macOS signing and notarisation come from repository secrets there
+# (BUILDING.md § Releases). Updates: electron-updater reads the `publish` feed (GitHub Releases of this repository).
 appId: io.github.tkyu-labs.tomo
 productName: Tomo
 copyright: Copyright (c) 2026 Tomo contributors
@@ -24,13 +25,21 @@ extraResources:
     to: engine-helpers
     filter: ['*.py']
 asarUnpack: []
+publish:
+  provider: github
+  owner: tkyu-labs
+  repo: tomo
+  releaseType: draft   # the workflow uploads to a draft; publishing the release is what ships the update
 mac:
   target:
     - target: dmg
       arch: [arm64]
+    - target: zip      # macOS auto-update downloads the zip
+      arch: [arm64]
   category: public.app-category.education
-  identity: null
-  hardenedRuntime: false
+  hardenedRuntime: true
+  entitlements: build-resources/entitlements.mac.plist
+  entitlementsInherit: build-resources/entitlements.mac.plist
 win:
   target:
     - target: nsis

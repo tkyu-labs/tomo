@@ -18,8 +18,9 @@
     "test:real": "TOMO_REAL_MODEL=1 vitest run test/real",
     "test:e2e": "electron-vite build && node test/e2e/smoke.mjs && node test/e2e/first-run.mjs",
     "test:py": "node scripts/run-pytest.mjs",
-    "dist:mac": "node scripts/fetch-uv.mjs && node scripts/prepare-packs.mjs && electron-vite build && electron-builder --mac -c.electronDownload.cache=.dev/cache/electron",
-    "dist:win": "node scripts/fetch-uv.mjs win32-x64 && node scripts/prepare-packs.mjs && electron-vite build && electron-builder --win -c.electronDownload.cache=.dev/cache/electron"
+    "dist:mac": "node scripts/fetch-uv.mjs && node scripts/prepare-packs.mjs && electron-vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never -c.electronDownload.cache=.dev/cache/electron",
+    "dist:win": "node scripts/fetch-uv.mjs win32-x64 && node scripts/prepare-packs.mjs && electron-vite build && electron-builder --win --publish never -c.electronDownload.cache=.dev/cache/electron",
+    "test:unit": "vitest run src"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -44,6 +45,7 @@
     "@fortawesome/fontawesome-svg-core": "^7.3.1",
     "@fortawesome/free-solid-svg-icons": "^7.3.1",
     "@fortawesome/react-fontawesome": "^3.5.0",
+    "electron-updater": "^6.8.11",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "sigstore": "^5.0.0",

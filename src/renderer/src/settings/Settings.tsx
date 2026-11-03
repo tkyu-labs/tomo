@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { AppState, ModelList, Reasoning, Theme, UiScale } from '@shared/ipc'
+import type { AppState, ModelList, Reasoning, Theme, UiScale, UpdateStatus } from '@shared/ipc'
 import { useCopy, useLocale, type Locale } from '../i18n'
 import { providerLabel } from '../setup/ProviderSheet'
 
@@ -13,6 +13,8 @@ export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<'chats' | 'everything' | null>(null)
   const ready = state.engine.state === 'ready'
+  const [update, setUpdate] = useState<UpdateStatus | null>(null)
+  useEffect(() => { void window.tomo.updateStatus().then(setUpdate); return window.tomo.onUpdateStatus(setUpdate) }, [])
 
   useEffect(() => { if (ready) void window.tomo.listModels().then(setModels).catch(() => setModels(null)) }, [ready])
 
@@ -112,6 +114,22 @@ export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh
 
         <section className="settings-section" data-testid="about">
           <h2>{c('About', '关于', 'このアプリについて')}</h2>
+          <div className="setting-row" data-testid="updates">
+            <div>
+              <strong>Tomo {update?.current ?? ''}</strong>
+              <span>
+                {!update || update.state === 'idle' ? c('Updates are installed automatically when Tomo quits.', '更新会在 Tomo 退出时自动安装。', '更新は Tomo の終了時に自動でインストールされます。')
+                  : update.state === 'checking' ? c('Checking for updates…', '正在检查更新…', '更新を確認しています…')
+                  : update.state === 'up-to-date' ? c('Tomo is up to date.', 'Tomo 已是最新版本。', 'Tomo は最新です。')
+                  : update.state === 'downloading' ? c(`Downloading ${update.available ?? ''}… ${update.percent ?? 0}%`, `正在下载 ${update.available ?? ''}… ${update.percent ?? 0}%`, `${update.available ?? ''} をダウンロード中… ${update.percent ?? 0}%`)
+                  : update.state === 'ready' ? c(`Version ${update.available} is ready and installs when Tomo quits.`, `新版本 ${update.available} 已下载，Tomo 退出时安装。`, `バージョン ${update.available} の準備ができました。終了時にインストールされます。`)
+                  : c(`Update check failed: ${update.error}`, `检查更新失败：${update.error}`, `更新の確認に失敗しました：${update.error}`)}
+              </span>
+            </div>
+            {update?.state === 'ready'
+              ? <button className="primary" onClick={() => void window.tomo.installUpdate()}>{c('Restart now', '立即重启', '今すぐ再起動')}</button>
+              : <button className="secondary" disabled={update?.state === 'checking' || update?.state === 'downloading'} onClick={() => void window.tomo.checkForUpdates()}>{c('Check now', '立即检查', '今すぐ確認')}</button>}
+          </div>
           <div className="setting-row">
             <div><strong>{c('AI engine', 'AI 引擎', 'AI エンジン')}</strong><span>Hermes Agent {state.engine.version} · <span className={`status-dot ${ready ? 'ok' : ''}`} /> {state.engine.state}</span></div>
             <div className="row-actions">

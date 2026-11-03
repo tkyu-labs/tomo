@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { IPC, type AppInfo } from '@shared/ipc'
 import { AppController } from './app/controller'
+import { Updater } from './app/updater'
 import { findBrowsers } from './app/browsers'
 import { installChrome } from './app/chrome-install'
 import { devRuntime } from './hermes/runtime'
@@ -33,6 +34,7 @@ function packsSourceDir(): string {
 
 let win: BrowserWindow | null = null
 const send = (channel: string, ...args: unknown[]) => win?.webContents.send(channel, ...args)
+const updater = new Updater((s) => send(IPC.updateEvent, s))
 
 // Development runs the engine from .dev/ (scripts/dev-hermes.sh). Installed apps — and development with
 // TOMO_ENGINE=install — download Hermes from GitHub into Tomo's folder on first start, using the bundled uv.
@@ -53,6 +55,7 @@ const controller = new AppController({
   helpersDir: isDev ? join(appRoot, 'engine-helpers') : join(process.resourcesPath, 'engine-helpers'),
   runtimeDir: !installEngine && existsSync(join(appRoot, '.dev', 'home', 'tools')) ? join(appRoot, '.dev', 'home', 'tools') : undefined,
   baseEnv: process.env,
+  appVersion: app.getVersion(),
   // GakuenAI relay: runtime environment first (TOMO_GAKUEN_URL, or GAKUEN_API_GATEWAY as set for development), then the
   // value baked into tester builds at build time (MAIN_VITE_GAKUEN_URL). The URL is never part of the source.
   gakuenUrl: process.env.TOMO_GAKUEN_URL || process.env.GAKUEN_API_GATEWAY || import.meta.env.MAIN_VITE_GAKUEN_URL || undefined,
@@ -138,6 +141,9 @@ handle(IPC.setReasoning, (l: Parameters<AppController['setReasoning']>[0]) => co
 handle(IPC.userMemory, () => controller.userMemory())
 handle(IPC.restartEngine, () => controller.startEngine(true))
 handle(IPC.diagnostics, () => controller.diagnostics())
+handle(IPC.updateStatus, () => updater.status)
+handle(IPC.checkForUpdates, () => updater.check())
+handle(IPC.installUpdate, () => updater.installNow())
 handle(IPC.retryEnginePrep, () => controller.prepareEngine().then(() => undefined))
 handle(IPC.exportData, async () => {
   const res = await dialog.showSaveDialog(win!, { defaultPath: 'tomo-export.json' })
@@ -167,6 +173,7 @@ function setMenu(): void {
 
 app.whenReady().then(async () => {
   setMenu()
+  updater.start()
   if (isDev && process.platform === 'darwin') app.dock?.setIcon(join(appIconDir, 'icon.png')) // packaged builds use icon.icns
   win = createWindow()
   if (controller.getState().setupDone) await controller.startEngine().catch(() => undefined)

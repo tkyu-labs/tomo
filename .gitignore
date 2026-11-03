@@ -14,3 +14,4 @@ __pycache__/
 *.tsbuildinfo
 build/
 release/
+release-next/

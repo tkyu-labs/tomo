@@ -23,7 +23,8 @@ export function providerConfig(sel: ProviderSelection): { model: Record<string, 
       if (!sel.baseUrl) throw new Error('GakuenAI needs the relay URL')
       return {
         model: { provider: 'custom:gakuen', default: sel.model },
-        custom_providers: [{ name: 'gakuen', base_url: sel.baseUrl, key_env: 'GAKUEN_API_KEY', api_mode: 'chat_completions' }],
+        // GakuenAI speaks the OpenAI Responses protocol (Hermes: codex_responses, cli-config.yaml.example:267)
+        custom_providers: [{ name: 'gakuen', base_url: sel.baseUrl, key_env: 'GAKUEN_API_KEY', api_mode: 'codex_responses' }],
       }
     case 'custom':
       if (!sel.baseUrl) throw new Error('a custom endpoint needs a base URL')

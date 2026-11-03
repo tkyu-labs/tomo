@@ -48,6 +48,7 @@ export function App() {
   }, [refresh])
 
   useEffect(() => { document.documentElement.lang = htmlLang(locale) }, [locale])
+  useEffect(() => { void window.tomo.appInfo().then((i) => { document.documentElement.dataset.platform = i.platform }) }, [])
   useEffect(() => { if (state) document.documentElement.dataset.theme = state.prefs.theme }, [state])
 
   const ready = state?.setupDone && state.engine.state === 'ready'

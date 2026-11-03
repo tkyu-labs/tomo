@@ -46,7 +46,9 @@ const controller = new AppController({
   helpersDir: isDev ? join(appRoot, 'engine-helpers') : join(process.resourcesPath, 'engine-helpers'),
   runtimeDir: isDev && existsSync(join(appRoot, '.dev', 'home', 'tools')) ? join(appRoot, '.dev', 'home', 'tools') : undefined,
   baseEnv: process.env,
-  gakuenUrl: process.env.TOMO_GAKUEN_URL,
+  // GakuenAI relay: runtime environment first (TOMO_GAKUEN_URL, or GAKUEN_API_GATEWAY as set for development), then the
+  // value baked into tester builds at build time (MAIN_VITE_GAKUEN_URL). The URL is never part of the source.
+  gakuenUrl: process.env.TOMO_GAKUEN_URL || process.env.GAKUEN_API_GATEWAY || import.meta.env.MAIN_VITE_GAKUEN_URL || undefined,
   emit: {
     chat: (sessionId, e) => send(IPC.chatEvent, sessionId, e),
     request: (r) => send(IPC.engineRequest, r),
@@ -67,6 +69,7 @@ function createWindow(): BrowserWindow {
     title: 'Tomo（伴）',
     show: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    ...(process.platform === 'darwin' ? { trafficLightPosition: { x: 16, y: 18 } } : {}),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,

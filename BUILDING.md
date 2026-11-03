@@ -24,6 +24,12 @@ node scripts/fetch-pack-release.mjs shonan-it 0.1.0   # checks the Sigstore bund
 export TOMO_PACKS_SRC=build/pack-releases/packs
 ```
 
+## Tester builds with GakuenAI
+
+The GakuenAI option appears only when the build knows the relay URL. Set it when building (it is compiled into the
+app, not committed): `MAIN_VITE_GAKUEN_URL=<relay>/v1 npm run dist:mac` (or `dist:win`). In development,
+`TOMO_GAKUEN_URL` or `GAKUEN_API_GATEWAY` in the environment works too. GakuenAI uses the OpenAI Responses protocol.
+
 ## macOS
 
 ```sh

@@ -125,6 +125,8 @@ try {
   await audit('en:finish')
   await next() // Start Using Tomo
   await app.waitFor($('[data-testid=composer]'), 30000)
+  // macOS: nothing of the sidebar brand under the traffic lights (window area x < 80, y < 34 window px)
+  report.trafficLightsClear = await app.evaluate(`(() => { if (document.documentElement.dataset.platform !== 'darwin') return true; const z = Number(getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom') || 1); const r = document.querySelector('.sidebar .brand-mark').getBoundingClientRect(); return r.top * z >= 34 || r.left * z >= 80 })()`)
   report.quickTopics = await app.evaluate(`[...document.querySelectorAll('[data-testid=quick-topics] .nav-item-label')].map((e) => e.textContent)`)
 
   // first question, with identifiers typed by the student
@@ -159,7 +161,7 @@ try {
   report.memory = await app.evaluate(`[...document.querySelectorAll('[data-testid=memory-entry]')].map((e) => e.textContent)`)
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported) && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported) && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

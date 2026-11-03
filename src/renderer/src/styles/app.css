@@ -36,3 +36,12 @@
 .model-select { width: 100%; }
 .error-text { color: var(--danger); }
 .engine-pill.missing { color: var(--danger); }
+/* macOS: the title bar is hidden and the traffic lights (at 16,18 in window pixels, 12 px tall) sit on the content.
+   Keep the sidebar's top clear of them and let that strip and the toolbar move the window. */
+html[data-platform="darwin"] .sidebar-head { padding-top: calc(40px / var(--ui-zoom, 1)); }
+html[data-platform="darwin"] .sidebar-head,
+html[data-platform="darwin"] .main > .topbar,
+html[data-platform="darwin"] .onboarding-page .hatch-brand { -webkit-app-region: drag; }
+html[data-platform="darwin"] .sidebar-head button,
+html[data-platform="darwin"] .topbar button,
+html[data-platform="darwin"] .hatch-brand > * { -webkit-app-region: no-drag; }

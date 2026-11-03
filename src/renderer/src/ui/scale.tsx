@@ -42,6 +42,8 @@ export function ScaleRoot({ scale, children }: { scale: UiScale; children: React
   useHairline(zoom)
   const h = vp.h / zoom
   useEffect(() => { document.documentElement.style.setProperty('--app-h', `${h}px`) }, [h])
+  // window-pixel sizes (e.g. the macOS traffic-light area) are divided by the zoom in CSS
+  useEffect(() => { document.documentElement.style.setProperty('--ui-zoom', String(zoom)) }, [zoom])
   return (
     <div className="scale-root" style={{ width: vp.w / zoom, height: h, zoom: zoom === 1 ? undefined : zoom }}>
       {children}

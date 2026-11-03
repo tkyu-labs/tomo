@@ -20,6 +20,11 @@ export async function startStubModel({ port = 0 } = {}) {
     if (req.method === 'GET' && req.url?.endsWith('/models')) {
       return json(res, { object: 'list', data: [{ id: 'stub-model', object: 'model', owned_by: 'tomo-test', context_length: 128000 }] })
     }
+    if (req.method === 'POST' && req.url?.endsWith('/responses')) {
+      const payload = JSON.parse(body || '{}')
+      requests.push({ url: req.url, headers: req.headers, body: payload, raw: body })
+      return respond(res, payload)
+    }
     if (req.method === 'POST' && req.url?.endsWith('/chat/completions')) {
       const payload = JSON.parse(body || '{}')
       requests.push({ url: req.url, headers: req.headers, body: payload, raw: body })
@@ -97,6 +102,29 @@ function complete(res, payload, forced) {
   }
   res.write(`data: ${JSON.stringify({ id, object: 'chat.completion.chunk', created, model, choices: [], usage })}\n\n`)
   res.write('data: [DONE]\n\n')
+  res.end()
+}
+
+// OpenAI Responses API (text only), enough for a turn through Hermes' codex_responses transport.
+function respond(res, payload) {
+  const input = Array.isArray(payload.input) ? payload.input : [{ role: 'user', content: String(payload.input ?? '') }]
+  const lastUser = [...input].reverse().find((m) => m.role === 'user')
+  const userText = Array.isArray(lastUser?.content) ? lastUser.content.map((c) => c.text ?? '').join('') : String(lastUser?.content ?? '')
+  const text = `Stub answer: ${userText.slice(0, 200)}`
+  const id = 'resp_stub_' + Math.random().toString(16).slice(2)
+  const msg = { id: 'msg_' + id, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text, annotations: [] }] }
+  const response = (status, output) => ({ id, object: 'response', created_at: Math.floor(Date.now() / 1000), status, model: payload.model ?? 'stub-model', output, usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 } })
+  if (!payload.stream) return json(res, response('completed', [msg]))
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+  let seq = 0
+  const ev = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, sequence_number: seq++, ...data })}\n\n`)
+  ev('response.created', { response: response('in_progress', []) })
+  ev('response.output_item.added', { output_index: 0, item: { ...msg, status: 'in_progress', content: [] } })
+  ev('response.content_part.added', { output_index: 0, item_id: msg.id, content_index: 0, part: { type: 'output_text', text: '', annotations: [] } })
+  for (const part of text.match(/.{1,8}/gs) ?? []) ev('response.output_text.delta', { output_index: 0, item_id: msg.id, content_index: 0, delta: part })
+  ev('response.output_text.done', { output_index: 0, item_id: msg.id, content_index: 0, text })
+  ev('response.output_item.done', { output_index: 0, item: msg })
+  ev('response.completed', { response: response('completed', [msg]) })
   res.end()
 }
 

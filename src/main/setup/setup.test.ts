@@ -21,7 +21,7 @@ describe('Hermes config', () => {
   it('maps GakuenAI to a custom provider with key_env', () => {
     const c = buildHermesConfig({ provider: { id: 'gakuen', model: 'deepseek-flash', baseUrl: 'https://relay.example/v1', reasoning: 'medium' } })
     expect(c.model).toEqual({ provider: 'custom:gakuen', default: 'deepseek-flash' })
-    expect(c.custom_providers).toEqual([{ name: 'gakuen', base_url: 'https://relay.example/v1', key_env: 'GAKUEN_API_KEY', api_mode: 'chat_completions' }])
+    expect(c.custom_providers).toEqual([{ name: 'gakuen', base_url: 'https://relay.example/v1', key_env: 'GAKUEN_API_KEY', api_mode: 'codex_responses' }])
     expect(c.agent).toMatchObject({ reasoning_effort: 'medium' })
   })
 

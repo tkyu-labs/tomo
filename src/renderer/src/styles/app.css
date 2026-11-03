@@ -10,6 +10,8 @@
 .md-table { border-collapse: collapse; font-size: 13px; }
 .md-table th, .md-table td { border-bottom: var(--hairline) solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
 .md-table th { color: var(--text-muted); font-weight: 600; }
+/* inside an answer: aligned with the answer text and the avatar's top edge (the base rule indents it by 42px) */
+.answer > .tool-summary.answer-tool { margin: 0 0 10px; }
 .tool-summary ul { margin: 6px 0 0; padding-left: 1.2em; color: var(--text-muted); font-size: 12px; }
 .topic-icon .brand-mark { width: 40px; height: 40px; font-size: 20px; }
 .tomo-card { margin: 10px 0 4px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-card); }

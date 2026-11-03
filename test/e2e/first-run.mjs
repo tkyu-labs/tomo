@@ -147,6 +147,11 @@ try {
     await app.waitFor(`document.querySelector('[data-testid=tomo-card][data-kind=steps]')`, 60000)
     report.card = await app.evaluate(`document.querySelector('[data-testid=tomo-card]').textContent`)
     await audit('en:card')
+    // tool steps line up with the answer text and start level with the avatar
+    await type('[data-testid=composer]', 'TOOL:skills_list ARGS:{}')
+    await click('[data-testid=send]')
+    await app.waitFor(`(() => { const m = [...document.querySelectorAll('[data-testid=assistant-message]')].at(-1); return m.querySelector('[data-testid=tool-steps]') && m.querySelector('[data-testid=answer-text]') && !document.querySelector('[data-testid=stop]') })()`, 60000)
+    report.toolStepsLayout = await app.evaluate(`(() => { const m = [...document.querySelectorAll('[data-testid=assistant-message]')].at(-1); const s = m.querySelector('[data-testid=tool-steps]').getBoundingClientRect(), t = m.querySelector('[data-testid=answer-text]').getBoundingClientRect(), a = m.querySelector('.assistant-avatar').getBoundingClientRect(); return { leftDiff: Math.round(s.left - t.left), topDiff: Math.round(s.top - a.top), rightDiff: Math.round(s.right - t.right) } })()`)
   }
 
   // the same screens in zh and ja
@@ -162,7 +167,7 @@ try {
   report.memory = await app.evaluate(`[...document.querySelectorAll('[data-testid=memory-entry]')].map((e) => e.textContent)`)
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported) && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

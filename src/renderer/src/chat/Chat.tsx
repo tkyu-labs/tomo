@@ -147,7 +147,7 @@ export function Chat({ session, topicId, pack, values, onSend, onStop, modelLabe
               <div className="assistant-avatar"><span>伴</span></div>
               <div className="answer">
                 {m.tools.length > 0 && (
-                  <details className="tool-summary" data-testid="tool-steps">
+                  <details className="tool-summary answer-tool" data-testid="tool-steps">
                     <summary>
                       {m.tools.every((t) => t.done) ? <Icon name="check" size={14} /> : <span className="spinner" />}
                       {m.tools.map((t) => toolLabel(t.name)).filter((v, j, a) => a.indexOf(v) === j).join(' · ')}

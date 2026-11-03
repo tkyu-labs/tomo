@@ -97,6 +97,22 @@ const tray = new TomoTray(appIconDir, {
   canOpenSettings: () => controller.getState().setupDone,
 })
 
+const QUIT_COPY = {
+  en: { message: 'Tomo is still working', detail: 'An answer or an action is in progress. Quitting stops it.', quit: 'Quit anyway', keep: 'Keep running' },
+  zh: { message: 'Tomo 还在工作', detail: '有回答或操作正在进行，退出会中断它。', quit: '仍然退出', keep: '继续运行' },
+  ja: { message: 'Tomo はまだ作業中です', detail: '回答または操作が進行中です。終了すると中断されます。', quit: '終了する', keep: '実行を続ける' },
+}
+
+async function quitFromClose(w: BrowserWindow): Promise<void> {
+  if (controller.busy) {
+    const t = QUIT_COPY[controller.getState().prefs.locale] ?? QUIT_COPY.en
+    const { response } = await dialog.showMessageBox(w, { type: 'question', message: t.message, detail: t.detail, buttons: [t.quit, t.keep], defaultId: 1, cancelId: 1, noLink: true })
+    if (response !== 0) return
+  }
+  quitting = true
+  app.quit()
+}
+
 function createWindow(): BrowserWindow {
   const start = restoreState(readWindowState(windowStateFile), screen.getAllDisplays().map((d) => d.workArea), WINDOW_DEFAULT, WINDOW_MIN)
   const w = new BrowserWindow({
@@ -141,6 +157,11 @@ function createWindow(): BrowserWindow {
     save()
     if (quitting) return
     e.preventDefault()
+    // Settings → Window → "When you close the window": quit (asking first while Tomo is working) or keep running
+    if (controller.getState().prefs.closeAction === 'quit') {
+      void quitFromClose(w)
+      return
+    }
     w.hide()
     if (process.platform === 'win32' && !controller.settings.read().trayHintShown) {
       tray.showCloseHint()

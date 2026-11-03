@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { AppState, ModelList, Reasoning, Theme, UiScale, UpdateStatus } from '@shared/ipc'
+import type { AppState, ModelList, Prefs, Reasoning, UpdateStatus } from '@shared/ipc'
 import { useCopy, useLocale, type Locale } from '../i18n'
 import { providerLabel } from '../setup/ProviderSheet'
 
 const SCALES = [0.8, 0.9, 1, 1.1, 1.25]
 
-export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh: () => Promise<AppState>; onPrefs: (p: { theme?: Theme; uiScale?: UiScale }) => void }) {
+export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh: () => Promise<AppState>; onPrefs: (p: Partial<Prefs>) => void }) {
   const c = useCopy()
   const { locale, setLocale } = useLocale()
   const [models, setModels] = useState<ModelList | null>(null)
@@ -13,6 +13,7 @@ export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<'chats' | 'everything' | null>(null)
   const ready = state.engine.state === 'ready'
+  const mac = document.documentElement.dataset.platform === 'darwin'
   const [update, setUpdate] = useState<UpdateStatus | null>(null)
   useEffect(() => { void window.tomo.updateStatus().then(setUpdate); return window.tomo.onUpdateStatus(setUpdate) }, [])
 
@@ -53,6 +54,26 @@ export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh
             <select className="setting-value setting-select" value={String(state.prefs.uiScale)} onChange={(e) => onPrefs({ uiScale: e.target.value === 'auto' ? 'auto' : Number(e.target.value) })} aria-label={c('Interface size', '界面大小', '表示サイズ')}>
               <option value="auto">{c('Automatic', '自动', '自動')}</option>
               {SCALES.map((z) => <option key={z} value={String(z)}>{Math.round(z * 100)}%</option>)}
+            </select>
+          </div>
+        </section>
+
+        <section className="settings-section" data-testid="window-settings">
+          <h2>{c('Window', '窗口', 'ウィンドウ')}</h2>
+          <div className="setting-row">
+            <div>
+              <strong>{c('When you close the window', '关闭主窗口时', 'ウィンドウを閉じたとき')}</strong>
+              <span data-testid="close-action-note">
+                {state.prefs.closeAction === 'quit'
+                  ? c('Closing the window quits Tomo and its AI engine. Reminders pause until you open Tomo again; a running task asks before it stops.', '关闭窗口即退出 Tomo 及其 AI 引擎。再次打开 Tomo 前提醒会暂停；有任务进行中时会先询问。', 'ウィンドウを閉じると Tomo と AI エンジンを終了します。次に開くまでリマインダーは止まります。作業中のときは先に確認します。')
+                  : mac
+                    ? c('Tomo keeps running in the menu bar: reminders and running tasks continue. Quit with ⌘Q or from the 伴 icon.', 'Tomo 在菜单栏继续运行：提醒和进行中的任务不中断。用 ⌘Q 或菜单栏的「伴」图标退出。', 'Tomo はメニューバーで動き続け、リマインダーや実行中の作業も続きます。終了は ⌘Q かメニューバーの「伴」アイコンから。')
+                    : c('Tomo keeps running in the notification area: reminders and running tasks continue. Quit from the Tomo icon there.', 'Tomo 在通知区域继续运行：提醒和进行中的任务不中断。要退出，请从通知区域的 Tomo 图标选择退出。', 'Tomo は通知領域で動き続け、リマインダーや実行中の作業も続きます。終了は通知領域の Tomo アイコンから。')}
+              </span>
+            </div>
+            <select className="setting-value setting-select" data-testid="close-action" value={state.prefs.closeAction} onChange={(e) => onPrefs({ closeAction: e.target.value === 'quit' ? 'quit' : 'tray' })} aria-label={c('When you close the window', '关闭主窗口时', 'ウィンドウを閉じたとき')}>
+              <option value="tray">{mac ? c('Keep running in the menu bar', '缩到菜单栏继续运行', 'メニューバーで動作を続ける') : c('Keep running in the notification area', '缩到通知区域继续运行', '通知領域で動作を続ける')}</option>
+              <option value="quit">{c('Quit Tomo', '退出 Tomo', 'Tomo を終了')}</option>
             </select>
           </div>
         </section>

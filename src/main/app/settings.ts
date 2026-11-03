@@ -22,7 +22,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   setupDone: false,
-  prefs: { locale: 'en', theme: 'light', uiScale: 'auto' },
+  prefs: { locale: 'en', theme: 'light', uiScale: 'auto', closeAction: 'tray' },
   answers: {},
   answerMode: 'direct',
 }

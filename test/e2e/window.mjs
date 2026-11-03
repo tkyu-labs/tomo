@@ -61,7 +61,7 @@ try {
 }
 
 // the next start opens where the student left it
-app = await launchApp({ env, port: 9353 })
+app = await launchApp({ env, port: 9353, args: [`--inspect=${INSPECT}`] })
 try {
   await app.waitFor(`document.readyState === 'complete' && document.visibilityState === 'visible'`)
   await sleep(500)
@@ -69,12 +69,20 @@ try {
   report.reopened = b
   const t = report.target
   report.reopenedOk = near(b.x, t.x) && near(b.y, t.y) && near(b.width, t.width) && near(b.height, t.height)
+
+  // Settings → Window → "Quit Tomo": closing the window ends Tomo (nothing is running, so no question)
+  await app.evaluate(`window.tomo.setPrefs({ closeAction: 'quit' })`)
+  await mainEval(`(() => { require('electron').BrowserWindow.getAllWindows()[0].close(); return true })()`).catch(() => undefined)
+  const end = Date.now() + 15000
+  let exited = false
+  while (!exited && Date.now() < end) { exited = app.proc.exitCode !== null || app.proc.signalCode !== null; if (!exited) await sleep(200) }
+  report.quitOnClose = exited
 } finally {
   await app.close()
   rmSync(data, { recursive: true, force: true })
 }
 
 console.log(JSON.stringify(report, null, 2))
-const ok = report.restoredOk && report.savedOk && report.closeCalled && report.hiddenAfterClose && report.aliveAfterClose && report.secondExit === 0 && report.shownBySecondStart && report.reopenedOk
+const ok = report.restoredOk && report.savedOk && report.closeCalled && report.hiddenAfterClose && report.aliveAfterClose && report.secondExit === 0 && report.shownBySecondStart && report.reopenedOk && report.quitOnClose
 console.log(ok ? 'WINDOW OK' : 'WINDOW FAILED')
 process.exitCode = ok ? 0 : 1

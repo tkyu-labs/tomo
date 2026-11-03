@@ -83,3 +83,14 @@ describe('answer modes and study log', () => {
     expect(text).not.toMatch(/Lin Mei|23B0001|\{\{|Guide|registration/)
   })
 })
+
+describe('busy while a turn runs (closing with "Quit Tomo" asks first)', () => {
+  it('is busy from send until the turn completes', async () => {
+    const id = await ctl.createSession()
+    expect(ctl.busy).toBe(false)
+    const done = turn(id, 'Hello while busy')
+    expect(ctl.busy).toBe(true)
+    await done
+    expect(ctl.busy).toBe(false)
+  })
+})

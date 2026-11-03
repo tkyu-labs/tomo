@@ -317,7 +317,7 @@ export class AppController {
         autoRestart: true,
         onServerRequest: (method, params) => this.onServerRequest(method, params),
       })
-      this.hermes.on('state', (st) => this.opts.emit.engineState(st))
+      this.hermes.on('state', (st) => { if (st !== 'ready') this.runningTurns.clear(); this.opts.emit.engineState(st) })
       this.client = new HermesClient(this.hermes, this.masker)
       this.hermes.on('event', (raw) => this.forwardEvent(raw))
     }
@@ -347,6 +347,7 @@ export class AppController {
     }
     const ev = toTurnEvent(e)
     if (!ev) return
+    if (ev.kind === 'complete' || ev.kind === 'error') this.runningTurns.delete(raw.session_id)
     this.study.event(raw.session_id, ev)
     this.opts.emit.chat(raw.session_id, ev)
   }
@@ -404,7 +405,14 @@ export class AppController {
       .filter((m) => m.role !== 'assistant' || m.text.trim())
   }
 
+  /** Sessions with a turn in progress (asked before quitting on close). */
+  private readonly runningTurns = new Set<string>()
+  get busy(): boolean {
+    return this.runningTurns.size > 0 && this.hermes?.state === 'ready'
+  }
+
   async send(sessionId: string, text: string, topic?: string): Promise<void> {
+    this.runningTurns.add(sessionId)
     this.study.turnStarted(sessionId, topic ?? null)
     await this.rpcClient.submit(sessionId, text) // masked inside HermesClient
   }

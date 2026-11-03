@@ -49,3 +49,5 @@ html[data-platform="darwin"] .topbar button,
 html[data-platform="darwin"] .hatch-brand > * { -webkit-app-region: no-drag; }
 /* pills inside settings rows: `.setting-row span { display: block }` (index.css) would otherwise drop their flex gap */
 .setting-row .tag-v2, .setting-row .badge-pill { display: inline-flex; align-items: center; gap: 4px; }
+/* Settings: one column of sections (the two-column grid placed cards row by row and left holes on the right) */
+.settings-layout { grid-template-columns: minmax(0, 1fr); max-width: 760px; gap: 16px; }

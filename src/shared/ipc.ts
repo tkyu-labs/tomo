@@ -22,10 +22,14 @@ export interface ProviderChoice {
   reasoning?: Reasoning
 }
 
+/** What closing the main window does: keep running in the tray / menu bar, or quit Tomo. */
+export type CloseAction = 'tray' | 'quit'
+
 export interface Prefs {
   locale: Lang
   theme: Theme
   uiScale: UiScale
+  closeAction: CloseAction
 }
 
 export type ChatGptLoginEvent =

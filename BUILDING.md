@@ -61,3 +61,41 @@ Then check on that PC:
 4. The terminal tool works (Hermes needs Git Bash; if it reports "No shell found", install Git for Windows).
 
 Unsigned installers show a SmartScreen warning; sign with your code-signing certificate on the release machine.
+
+## Releases and automatic updates
+
+Pushing a version tag builds Tomo in GitHub Actions (`.github/workflows/release.yml`, macOS arm64 + Windows x64) and
+uploads the installers and the update feeds (`latest-mac.yml`, `latest.yml`) to a **draft** release. Publishing the
+draft ships the update: installed apps check at start and every 6 hours, download in the background and install when
+Tomo quits (Settings → About shows the state and offers "Restart now"). macOS applies updates only to signed apps.
+
+### Repository secrets (Settings → Secrets and variables → Actions)
+
+| Secret | Value |
+|---|---|
+| `GAKUEN_URL` | GakuenAI relay URL ending in `/v1` (compiled into the app; useless without a key) |
+| `MAC_CERT_P12_BASE64` | your *Developer ID Application* certificate **with its private key**, exported from Keychain Access as `.p12`, then `base64 -i cert.p12 \| pbcopy` |
+| `MAC_CERT_PASSWORD` | the password you set when exporting the `.p12` |
+| `APPLE_ID` | the Apple Account e-mail of the developer team |
+| `APPLE_APP_SPECIFIC_PASSWORD` | an app-specific password from account.apple.com → Sign-In and Security |
+| `APPLE_TEAM_ID` | your 10-character Team ID (developer.apple.com → Membership) |
+
+Without the macOS secrets the workflow still builds, unsigned (no automatic updates on macOS). Windows builds are
+unsigned (SmartScreen warns once); updates work regardless.
+
+### Making a release
+
+```sh
+npm version 0.1.1 --no-git-tag-version   # updates package.json
+git commit -am "chore: release 0.1.1"
+git tag v0.1.1 && git push && git push origin v0.1.1
+```
+
+Then open the draft release, check that it has the `.dmg`, `-mac.zip`, `latest-mac.yml`, `Tomo-Setup-<version>.exe`,
+`latest.yml` and the `.blockmap` files, and press **Publish**. A new Hermes pin in the release is installed by the app's
+engine step after the update.
+
+### Checking an update locally
+
+`node test/e2e/update-check.mjs <installed app binary> <folder with a newer build>` serves the folder as an update feed
+(e.g. built with `-c.extraMetadata.version=<higher> -c.directories.output=release-next`) and reports the states.

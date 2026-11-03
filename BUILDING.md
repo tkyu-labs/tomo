@@ -37,10 +37,12 @@ timestamp so the app keeps opening after the certificate expires, then notarise 
 
 ## Windows
 
-On a Windows 10/11 x64 PC, in Git Bash:
+On a Windows 10/11 x64 PC, in Git Bash (uv can be a single `uv.exe` on PATH; `core.autocrlf` may stay on — the
+shell scripts are checked out with LF through `.gitattributes`):
 
 ```sh
-npm run dist:win                  # → release/Tomo Setup <version>.exe (unsigned, per-user install)
+npm run dist:win                  # → release/Tomo Setup <version>.exe (unsigned, per-user install) + release/win-unpacked
+TOMO_E2E_APP="$(cygpath -w "$PWD/release/win-unpacked/Tomo.exe")" TOMO_E2E_PACK=shonan-it node test/e2e/first-run.mjs
 ```
 
 Then check on that PC:

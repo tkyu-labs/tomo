@@ -65,8 +65,10 @@ jobs:
           rm -f "$f"
           certs=$(grep -c 'BEGIN CERTIFICATE' <<<"$out" || true)
           keys=$(grep -c -E 'BEGIN ([A-Z]+ )?PRIVATE KEY' <<<"$out" || true)
-          devid=$(grep -c 'Developer ID Application' <<<"$out" || true)
+          # the subject line of the certificate, not the friendlyName of a lone key
+          devid=$(grep -c '^subject=.*Developer ID Application' <<<"$out" || true)
           echo "certificates: $certs, private keys: $keys, Developer ID Application certificate: $([ "$devid" -gt 0 ] && echo yes || echo no)"
+          if [ "$certs" -eq 0 ]; then echo "::error::the .p12 has only a private key: in Keychain Access → My Certificates, export the certificate row (it includes its key), not the key row"; exit 1; fi
           if [ "$keys" -eq 0 ]; then echo "::error::the .p12 has no private key: export the certificate together with its key (Keychain Access → My Certificates)"; exit 1; fi
           if [ "$devid" -eq 0 ]; then echo "::error::the .p12 has no Developer ID Application certificate"; exit 1; fi
       - name: Build and upload

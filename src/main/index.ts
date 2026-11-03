@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { IPC, type AppInfo } from '@shared/ipc'
@@ -18,6 +18,7 @@ const dataDir = process.env.TOMO_DATA_DIR || tomoDataDir({
   devRoot: isDev ? appRoot : undefined,
 })
 const paths = tomoPaths(dataDir)
+const appIconDir = isDev ? join(appRoot, 'build-resources') : process.resourcesPath
 // Chromium's own profile (cache, local storage) goes inside Tomo's folder, never next to it in the user's profile.
 app.setPath('userData', join(dataDir, 'electron'))
 app.setPath('sessionData', join(dataDir, 'electron'))
@@ -42,12 +43,14 @@ const controller = new AppController({
   },
   packsSourceDir: packsSourceDir(),
   pluginsDir: isDev ? join(appRoot, 'plugins') : join(process.resourcesPath, 'plugins'),
+  helpersDir: isDev ? join(appRoot, 'engine-helpers') : join(process.resourcesPath, 'engine-helpers'),
   runtimeDir: isDev && existsSync(join(appRoot, '.dev', 'home', 'tools')) ? join(appRoot, '.dev', 'home', 'tools') : undefined,
   baseEnv: process.env,
   gakuenUrl: process.env.TOMO_GAKUEN_URL,
   emit: {
     chat: (sessionId, e) => send(IPC.chatEvent, sessionId, e),
     request: (r) => send(IPC.engineRequest, r),
+    chatgptLogin: (e) => send(IPC.chatGptLogin, e),
     setupTask: (u) => send(IPC.setupTask, u),
     engineState: (s) => send(IPC.engineState, s),
   },
@@ -55,6 +58,8 @@ const controller = new AppController({
 
 function createWindow(): BrowserWindow {
   const w = new BrowserWindow({
+    autoHideMenuBar: true,
+    icon: join(appIconDir, 'icon.png'),
     width: 950,
     height: 600,
     minWidth: 720,
@@ -94,6 +99,9 @@ handle(IPC.setPrefs, (p: Parameters<AppController['setPrefs']>[0]) => controller
 handle(IPC.listPacks, () => controller.listPacks())
 handle(IPC.selectPack, (id: string | null) => controller.selectPack(id))
 handle(IPC.connectProvider, (c: Parameters<AppController['connectProvider']>[0], key?: string) => controller.connectProvider(c, key))
+handle(IPC.listProviderModels, (c: Parameters<AppController['listProviderModels']>[0], key: string) => controller.listProviderModels(c, key))
+handle(IPC.startChatGptLogin, () => controller.startChatGptLogin())
+handle(IPC.cancelChatGptLogin, () => controller.cancelChatGptLogin())
 handle(IPC.findBrowsers, () => findBrowsers(process.platform, app.getPath('home'), process.env))
 handle(IPC.installChrome, async () => {
   if (process.platform !== 'darwin') return { ok: false, message: 'Only needed on macOS; Windows uses Microsoft Edge.' }
@@ -130,7 +138,24 @@ handle(IPC.exportStudyLog, async () => {
   return res.canceled || !res.filePath ? null : { path: res.filePath, records: controller.exportStudyLog(res.filePath) }
 })
 
+/**
+ * No menu bar (UI decision: no menu for now). Windows / Linux: none at all — editing shortcuts still work in text
+ * fields. macOS always shows the system menu bar; keep only the app menu and Edit (⌘C / ⌘V need the Edit roles).
+ */
+function setMenu(): void {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+    return
+  }
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'appMenu', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
+    { role: 'editMenu' },
+  ]))
+}
+
 app.whenReady().then(async () => {
+  setMenu()
+  if (isDev && process.platform === 'darwin') app.dock?.setIcon(join(appIconDir, 'icon.png')) // packaged builds use icon.icns
   win = createWindow()
   if (controller.getState().setupDone) await controller.startEngine().catch(() => undefined)
   app.on('activate', () => {

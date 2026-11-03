@@ -17,6 +17,11 @@ extraResources:
     filter: ['**/*', '!tests/**', '!**/__pycache__/**']
   - from: build/packs
     to: packs
+  - from: build-resources/icon.png
+    to: icon.png
+  - from: engine-helpers
+    to: engine-helpers
+    filter: ['*.py']
 asarUnpack: []
 mac:
   target:

@@ -166,9 +166,11 @@ try {
     await audit(`${loc}:memory`)
   }
   report.memory = await app.evaluate(`[...document.querySelectorAll('[data-testid=memory-entry]')].map((e) => e.textContent)`)
+  // the "masked" pill on a memory entry: lock and label side by side with a gap (a settings-row rule once made it a block)
+  report.maskedTag = await app.evaluate(`(() => { const t = document.querySelector('[data-testid=masked-tag]'); if (!t) return null; const i = t.querySelector('svg').getBoundingClientRect(); const r = document.createRange(); r.selectNodeContents(t.lastChild); const x = r.getBoundingClientRect(); return { display: getComputedStyle(t).display, gap: Math.round((x.left - i.right) * 10) / 10, centred: Math.abs((i.top + i.height / 2) - (x.top + x.height / 2)) <= 2 } })()`)
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

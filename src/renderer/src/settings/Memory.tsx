@@ -23,7 +23,7 @@ export function Memory({ values }: { values: Record<string, string> }) {
             entries.map((e, i) => (
               <div className="setting-row" key={i} data-testid="memory-entry">
                 <div><strong>{unmask(e, values)}</strong></div>
-                {e.includes('{{') && <span className="tag-v2" title={e}><Icon name="lock" size={11} />{c('placeholder', '占位符', 'プレースホルダー')}</span>}
+                {e.includes('{{') && <span className="tag-v2" data-testid="masked-tag" title={`${c('Saved as', '保存为', '保存形式')}: ${e}`}><Icon name="lock" size={12} />{c('Masked', '已遮蔽', 'マスク済み')}</span>}
               </div>
             ))
           )}

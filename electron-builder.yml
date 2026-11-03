@@ -10,8 +10,9 @@ files:
   - out/**
   - package.json
 extraResources:
-  - from: build/engine
-    to: engine
+  # the AI engine is not shipped: Tomo installs Hermes from GitHub on first start with this uv
+  - from: build/uv
+    to: uv
   - from: plugins
     to: plugins
     filter: ['**/*', '!tests/**', '!**/__pycache__/**']

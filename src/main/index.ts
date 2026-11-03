@@ -5,7 +5,8 @@ import { IPC, type AppInfo } from '@shared/ipc'
 import { AppController } from './app/controller'
 import { findBrowsers } from './app/browsers'
 import { installChrome } from './app/chrome-install'
-import { bundledRuntime, devRuntime } from './hermes/runtime'
+import { devRuntime } from './hermes/runtime'
+import { EngineInstaller } from './engine/installer'
 import { tomoDataDir, tomoPaths } from './paths'
 
 const isDev = !app.isPackaged
@@ -33,9 +34,15 @@ function packsSourceDir(): string {
 let win: BrowserWindow | null = null
 const send = (channel: string, ...args: unknown[]) => win?.webContents.send(channel, ...args)
 
+// Development runs the engine from .dev/ (scripts/dev-hermes.sh). Installed apps — and development with
+// TOMO_ENGINE=install — download Hermes from GitHub into Tomo's folder on first start, using the bundled uv.
+const installEngine = !isDev || process.env.TOMO_ENGINE === 'install'
+const uvBinary = join(isDev ? join(appRoot, 'build', 'uv') : join(process.resourcesPath, 'uv'), process.platform === 'win32' ? 'uv.exe' : 'uv')
+
 const controller = new AppController({
   paths,
-  runtime: isDev ? devRuntime(appRoot) : bundledRuntime(join(process.resourcesPath, 'engine')),
+  runtime: installEngine ? undefined : devRuntime(appRoot),
+  engine: installEngine ? new EngineInstaller({ dataDir: paths.data, hermesHome: paths.hermesHome, uv: uvBinary, baseEnv: process.env }) : undefined,
   encryptor: {
     isAvailable: () => safeStorage.isEncryptionAvailable(),
     encrypt: (plain) => safeStorage.encryptString(plain),
@@ -44,7 +51,7 @@ const controller = new AppController({
   packsSourceDir: packsSourceDir(),
   pluginsDir: isDev ? join(appRoot, 'plugins') : join(process.resourcesPath, 'plugins'),
   helpersDir: isDev ? join(appRoot, 'engine-helpers') : join(process.resourcesPath, 'engine-helpers'),
-  runtimeDir: isDev && existsSync(join(appRoot, '.dev', 'home', 'tools')) ? join(appRoot, '.dev', 'home', 'tools') : undefined,
+  runtimeDir: !installEngine && existsSync(join(appRoot, '.dev', 'home', 'tools')) ? join(appRoot, '.dev', 'home', 'tools') : undefined,
   baseEnv: process.env,
   // GakuenAI relay: runtime environment first (TOMO_GAKUEN_URL, or GAKUEN_API_GATEWAY as set for development), then the
   // value baked into tester builds at build time (MAIN_VITE_GAKUEN_URL). The URL is never part of the source.
@@ -55,6 +62,7 @@ const controller = new AppController({
     chatgptLogin: (e) => send(IPC.chatGptLogin, e),
     setupTask: (u) => send(IPC.setupTask, u),
     engineState: (s) => send(IPC.engineState, s),
+    engineProgress: (p) => send(IPC.engineProgress, p),
   },
 })
 
@@ -130,6 +138,7 @@ handle(IPC.setReasoning, (l: Parameters<AppController['setReasoning']>[0]) => co
 handle(IPC.userMemory, () => controller.userMemory())
 handle(IPC.restartEngine, () => controller.startEngine(true))
 handle(IPC.diagnostics, () => controller.diagnostics())
+handle(IPC.retryEnginePrep, () => controller.prepareEngine().then(() => undefined))
 handle(IPC.exportData, async () => {
   const res = await dialog.showSaveDialog(win!, { defaultPath: 'tomo-export.json' })
   return res.canceled || !res.filePath ? null : controller.exportData(res.filePath)

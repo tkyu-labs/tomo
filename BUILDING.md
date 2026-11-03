@@ -1,8 +1,10 @@
 # Building Tomo
 
-Tomo ships its own copy of [Hermes Agent](https://github.com/NousResearch/hermes-agent) at the pinned release in
-`scripts/hermes-pin.env`. Python environments cannot be moved, so the engine is built on the operating system and
-architecture it is for: macOS builds on a Mac, Windows builds on a Windows PC.
+Tomo does not ship the AI engine. On first start it downloads [Hermes Agent](https://github.com/NousResearch/hermes-agent)
+at the commit pinned in `scripts/hermes-pin.env`, checks the archive's SHA-256, and installs it into Tomo's data folder
+with the [uv](https://docs.astral.sh/uv/) that ships with the app (`scripts/uv-pin.json`, hash-checked when building;
+`uv sync --frozen` checks every dependency against Hermes' `uv.lock`). An app update keeps the installed engine unless
+the pin changes. Installers are therefore small and the same for every Hermes-unchanged release.
 
 ## Common steps
 

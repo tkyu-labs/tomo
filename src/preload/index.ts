@@ -43,6 +43,8 @@ const api: TomoApi = {
   exportData: invoke(IPC.exportData) as TomoApi['exportData'],
   deleteData: invoke(IPC.deleteData) as TomoApi['deleteData'],
   onEngineState: (cb) => listen(IPC.engineState, cb),
+  onEngineProgress: (cb) => listen(IPC.engineProgress, cb),
+  retryEnginePrep: invoke(IPC.retryEnginePrep) as TomoApi['retryEnginePrep'],
   setAnswerMode: invoke(IPC.setAnswerMode) as TomoApi['setAnswerMode'],
   exportStudyLog: invoke(IPC.exportStudyLog) as TomoApi['exportStudyLog'],
 }

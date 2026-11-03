@@ -1,11 +1,47 @@
 // First run: Welcome + language → Privacy → AI provider → School pack → Hatch → Browser → Finish.
 import { useEffect, useState } from 'react'
-import type { AppState, BrowserInfo, FinishTask, PackSummary, ProviderChoice, TaskState } from '@shared/ipc'
+import type { AppState, BrowserInfo, EngineProgress, FinishTask, PackSummary, ProviderChoice, TaskState } from '@shared/ipc'
 import { pick, type Answers } from '@shared/pack/types'
 import { useCopy, useLocale, type Locale } from '../i18n'
 import { Icon, type IconName } from '../ui/Icon'
 import { HatchPage, HatchSummary } from './HatchFlow'
 import { ProviderSheet, providerLabel, suggestModel } from './ProviderSheet'
+
+function EnginePill({ state, refresh }: { state: AppState; refresh: () => Promise<AppState> }) {
+  const c = useCopy()
+  const [p, setP] = useState<EngineProgress | undefined>(state.engine.progress)
+  useEffect(() => window.tomo.onEngineProgress((e) => { setP(e); if (e.stage === 'done') void refresh() }), [refresh])
+  if (state.engine.installed || p?.stage === 'done') {
+    return (
+      <span className="engine-pill ready" role="status" data-testid="engine-pill">
+        <Icon name="check" size={11} />
+        {c('AI engine ready', 'AI 引擎已就绪', 'AI エンジン準備完了')}
+      </span>
+    )
+  }
+  if (p?.stage === 'error') {
+    return (
+      <span className="engine-pill missing" role="alert" data-testid="engine-pill" title={p.detail}>
+        <Icon name="info" size={11} />
+        {c('AI engine could not be prepared', 'AI 引擎准备失败', 'AI エンジンを準備できませんでした')}
+        <button className="link-button" onClick={() => { setP({ stage: 'download', percent: 0 }); void window.tomo.retryEnginePrep().catch(() => undefined) }}>{c('Try again', '重试', '再試行')}</button>
+      </span>
+    )
+  }
+  const pct = p?.percent ?? 0
+  const what = {
+    download: c('Downloading the AI engine', '正在下载 AI 引擎', 'AI エンジンをダウンロード中'),
+    unpack: c('Unpacking the AI engine', '正在解压 AI 引擎', 'AI エンジンを展開中'),
+    install: c('Installing the AI engine', '正在安装 AI 引擎', 'AI エンジンをインストール中'),
+    browser: c('Preparing browser tools', '正在准备浏览器工具', 'ブラウザツールを準備中'),
+  }[p?.stage ?? 'download'] ?? ''
+  return (
+    <span className="engine-pill" role="status" aria-live="polite" data-testid="engine-pill">
+      <span className="engine-ring" style={{ ['--p' as string]: `${pct}%` }} aria-hidden="true" />
+      {what}… {pct}%
+    </span>
+  )
+}
 
 const STEP = { welcome: 0, privacy: 1, ai: 2, pack: 3, hatch: 4, browser: 5, finish: 6 } as const
 const FINISH_TASKS: FinishTask[] = ['engine', 'settings', 'profile', 'start', 'test']
@@ -104,17 +140,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
         <div className="hatch-brand">
           <div className="brand-mark">伴</div>
           <strong>Tomo</strong>
-          {state.engine.installed ? (
-            <span className="engine-pill ready" role="status" data-testid="engine-pill">
-              <Icon name="check" size={11} />
-              {c('AI engine ready', 'AI 引擎已就绪', 'AI エンジン準備完了')}
-            </span>
-          ) : (
-            <span className="engine-pill missing" role="alert" data-testid="engine-pill">
-              <Icon name="info" size={11} />
-              {c('AI engine missing — reinstall Tomo', 'AI 引擎缺失，请重新安装 Tomo', 'AI エンジンがありません。Tomo を再インストールしてください')}
-            </span>
-          )}
+          <EnginePill state={state} refresh={refresh} />
         </div>
         <div className="setup-progress" aria-label="Setup progress">
           {steps.map((label, i) => (
@@ -308,7 +334,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
                 {FINISH_TASKS.map((t) => {
                   const st = tasks[t]
                   const label: Record<FinishTask, [string, string]> = {
-                    engine: [c('Prepare the AI engine', '准备 AI 引擎', 'AI エンジンを準備'), c("In Tomo's folder", '位于 Tomo 文件夹', 'Tomo のフォルダー')],
+                    engine: [c('Prepare the AI engine', '准备 AI 引擎', 'AI エンジンを準備'), c("Hermes from GitHub, installed in Tomo's folder", '从 GitHub 获取 Hermes，安装在 Tomo 的文件夹里', 'GitHub から Hermes を取得し、Tomo のフォルダーにインストール')],
                     settings: [c('Save your settings', '保存设置', '設定を保存'), c('Keys go to the system keychain', 'Key 存入系统钥匙串', 'キーはシステムのキーチェーンへ')],
                     profile: [c("Create Tomo's profile of you", '创建你的个人资料', 'あなたのプロフィールを作成'), c('Identifiers only as placeholders', '身份信息只写成占位符', '識別子はプレースホルダーのみ')],
                     start: [c('Start the AI engine', '启动 AI 引擎', 'AI エンジンを起動'), c('Runs on this computer, no network port', '在本机运行，不占用网络端口', 'このコンピューターで動作し、ネットワークポートは使いません')],

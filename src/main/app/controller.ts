@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
-  AppState, AnswerMode, ChatEvent, EngineRequest, FinishTask, HistoryMessage, PackSummary, Prefs, ProviderChoice,
+  AppState, AnswerMode, ChatEvent, EngineProgress, EngineRequest, FinishTask, HistoryMessage, PackSummary, Prefs, ProviderChoice,
   Reasoning, SessionRow, TaskUpdate,
 } from '@shared/ipc'
 import { identifiersFrom } from '@shared/pack/hatch'
@@ -21,6 +21,7 @@ import { privatePayload, writeAnswerMode, writeProfile } from '../setup/profile'
 import { PROVIDER_KEY_ENV, providerConfig } from '../setup/providers'
 import { SettingsFile, type Settings } from './settings'
 import { StudyLog } from './study-log'
+import type { EngineInstaller } from '../engine/installer'
 import { ChatGptLogin, type LoginEvent } from './chatgpt-login'
 import { listProviderModels } from './provider-check'
 
@@ -28,7 +29,9 @@ export const HERMES_VERSION = '0.21.7'
 
 export interface ControllerOptions {
   paths: TomoPaths
-  runtime: HermesRuntime
+  /** A fixed engine (development: .dev/hermes-venv). Without it, `engine` installs Hermes into Tomo's folder. */
+  runtime?: HermesRuntime
+  engine?: EngineInstaller
   encryptor: Encryptor
   /** Folder with tomo-packs `packs/<id>` directories (dev: the local checkout; app: bundled). */
   packsSourceDir: string
@@ -48,6 +51,7 @@ export interface ControllerOptions {
     chatgptLogin?(e: LoginEvent): void
     setupTask(u: TaskUpdate): void
     engineState(state: AppState['engine']['state']): void
+    engineProgress?(p: EngineProgress): void
   }
 }
 
@@ -77,6 +81,8 @@ export class AppController {
       const id = participant
       this.settings.update((s) => { s.participantId = id })
     }
+    // the engine is prepared in the background from the first screen on
+    if (opts.engine && !opts.engine.installed()) void this.prepareEngine().catch(() => undefined)
     this.study = new StudyLog(join(opts.paths.data, 'study', 'log.jsonl'), participant, () => {
       const s = this.settings.read()
       return { mode: s.answerMode, pack: s.packId ?? null }
@@ -106,7 +112,7 @@ export class AppController {
       keyHint: key ? `${key.slice(0, 3)}…${key.slice(-4)}` : undefined,
       gakuenAvailable: !!this.gakuenUrl(s),
       pack: pack ? { id: pack.manifest.id, manifest: pack.manifest, hatch: pack.hatch } : undefined,
-      engine: { state: this.hermes?.state ?? 'stopped', version: HERMES_VERSION, installed: existsSync(this.opts.runtime.python) && existsSync(join(this.opts.runtime.root, 'tui_gateway')) },
+      engine: { state: this.hermes?.state ?? 'stopped', version: HERMES_VERSION, installed: this.engineInstalled(), progress: this.opts.engine?.last },
       answerMode: s.answerMode,
     }
   }
@@ -150,11 +156,12 @@ export class AppController {
   private login = new ChatGptLogin()
 
   /** ChatGPT sign-in; Hermes stores the tokens in HERMES_HOME/auth.json (never in Tomo's files). */
-  startChatGptLogin(): void {
+  async startChatGptLogin(): Promise<void> {
+    await this.prepareEngine() // the sign-in runs Hermes' own code
     mkdirSync(this.opts.paths.hermesHome, { recursive: true })
     const env = buildHermesEnv({ base: this.opts.baseEnv, hermesHome: this.opts.paths.hermesHome, runtimeDir: this.runtimeDir(), cacheDir: join(this.opts.paths.data, 'cache') })
     const helper = join(this.opts.helpersDir ?? join(this.opts.pluginsDir, '..', 'engine-helpers'), 'codex_login.py')
-    this.login.start(this.opts.runtime, helper, env, (e) => this.opts.emit.chatgptLogin?.(e))
+    this.login.start(this.runtime(), helper, env, (e) => this.opts.emit.chatgptLogin?.(e))
   }
 
   cancelChatGptLogin(): void {
@@ -185,8 +192,9 @@ export class AppController {
     }
     try {
       await step('engine', async () => {
-        if (!existsSync(this.opts.runtime.python)) throw new Error('The AI engine is missing from this installation.')
-        const browser = await this.ensureBrowserRuntime()
+        await this.prepareEngine()
+        if (!this.engineInstalled()) throw new Error('The AI engine could not be prepared.')
+        const browser = this.opts.engine ? true : await this.ensureBrowserRuntime()
         return `Hermes ${HERMES_VERSION}${browser ? ' · browser tools ready' : ''}`
       })
       const pack = this.installedPack()
@@ -244,6 +252,24 @@ export class AppController {
   }
 
   // ------------------------------------------------------------------ engine
+  /** The engine to run: the fixed development one, or the one installed into Tomo's folder. */
+  runtime(): HermesRuntime {
+    if (this.opts.runtime) return this.opts.runtime
+    return this.opts.engine!.runtime()
+  }
+
+  engineInstalled(): boolean {
+    if (this.opts.engine) return this.opts.engine.installed()
+    const rt = this.opts.runtime!
+    return existsSync(rt.python) && existsSync(join(rt.root, 'tui_gateway'))
+  }
+
+  /** Downloads and installs Hermes on first start (no-op when installed or when a fixed engine is used). */
+  async prepareEngine(): Promise<HermesRuntime> {
+    if (!this.opts.engine) return this.runtime()
+    return this.opts.engine.prepare((p) => this.opts.emit.engineProgress?.(p))
+  }
+
   private runtimeDir(): string {
     return this.opts.runtimeDir ?? join(this.opts.paths.hermesHome, 'tools')
   }
@@ -256,7 +282,7 @@ export class AppController {
     const env = buildHermesEnv({ base: this.opts.baseEnv, hermesHome: this.opts.paths.hermesHome, runtimeDir: dir, cacheDir: join(this.opts.paths.data, 'cache') })
     mkdirSync(this.opts.paths.hermesHome, { recursive: true })
     await new Promise<void>((resolve) => {
-      const child = spawn(this.opts.runtime.python, ['-m', 'hermes_cli.main', 'pm', 'install', 'agent-browser'], { cwd: this.opts.runtime.root, env, stdio: 'ignore', windowsHide: true })
+      const child = spawn(this.runtime().python, ['-m', 'hermes_cli.main', 'pm', 'install', 'agent-browser'], { cwd: this.runtime().root, env, stdio: 'ignore', windowsHide: true })
       child.on('exit', () => resolve())
       child.on('error', () => resolve())
     })
@@ -282,7 +308,7 @@ export class AppController {
     if (this.hermes && restart) await this.hermes.stopAndWait()
     if (!this.hermes || restart) {
       this.hermes = new HermesProcess({
-        runtime: this.opts.runtime,
+        runtime: this.runtime(),
         env,
         autoRestart: true,
         onServerRequest: (method, params) => this.onServerRequest(method, params),

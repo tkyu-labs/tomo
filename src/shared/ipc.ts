@@ -41,6 +41,8 @@ export interface PackSummary {
 }
 
 export type EngineState = 'stopped' | 'starting' | 'ready' | 'crashed'
+/** First-start preparation of the engine (download from GitHub, install into Tomo's folder). */
+export interface EngineProgress { stage: 'download' | 'unpack' | 'install' | 'browser' | 'done' | 'error'; percent: number; detail?: string }
 
 export interface AppState {
   setupDone: boolean
@@ -52,7 +54,7 @@ export interface AppState {
   gakuenAvailable: boolean
   pack?: PackSummary
   /** installed: the engine files exist in this installation (checked at start, not assumed) */
-  engine: { state: EngineState; version: string; installed: boolean }
+  engine: { state: EngineState; version: string; installed: boolean; progress?: EngineProgress }
   answerMode: AnswerMode
 }
 
@@ -152,6 +154,8 @@ export interface TomoApi {
   setAnswerMode(mode: AnswerMode): Promise<void>
   exportStudyLog(): Promise<{ path: string; records: number } | null>
   onEngineState(cb: (state: EngineState) => void): () => void
+  onEngineProgress(cb: (p: EngineProgress) => void): () => void
+  retryEnginePrep(): Promise<void>
 }
 
 export const IPC = {
@@ -189,6 +193,8 @@ export const IPC = {
   exportData: 'tomo:export-data',
   deleteData: 'tomo:delete-data',
   engineState: 'tomo:engine-state',
+  engineProgress: 'tomo:engine-progress',
+  retryEnginePrep: 'tomo:retry-engine-prep',
   setAnswerMode: 'tomo:set-answer-mode',
   exportStudyLog: 'tomo:export-study-log',
 } as const

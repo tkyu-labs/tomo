@@ -60,7 +60,7 @@ try {
   await audit('en:privacy')
   await next() // AI provider
   await click('[data-testid=other-provider]'); await sleep(200)
-  report.enginePill = await app.evaluate(`document.querySelector('[data-testid=engine-pill]')?.className`)
+  report.enginePillAtStart = await app.evaluate(`document.querySelector('[data-testid=engine-pill]')?.textContent`)
   if (REAL) {
     // ChatGPT sign-in: OpenAI hands out a device code (not completed here; switching provider cancels it)
     await click('[data-testid=provider-openai]'); await sleep(100)
@@ -122,6 +122,7 @@ try {
   await next() // finish
   await app.waitFor(`[...document.querySelectorAll('[data-task]')].every((t) => t.dataset.state === 'done') || ${$('.task.error')}`, 120000)
   report.finish = await app.evaluate(`[...document.querySelectorAll('[data-task]')].map((t) => t.dataset.task + ':' + t.dataset.state + (t.dataset.state === 'error' ? ' ' + t.textContent : ''))`)
+  report.enginePill = await app.evaluate(`document.querySelector('[data-testid=engine-pill]')?.className`)
   await audit('en:finish')
   await next() // Start Using Tomo
   await app.waitFor($('[data-testid=composer]'), 30000)

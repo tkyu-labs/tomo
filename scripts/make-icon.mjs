@@ -1,5 +1,6 @@
 // Draws Tomo's app icon (brand colour, white 伴 in Noto Sans JP Bold, SIL OFL 1.1) with headless Chrome and writes
-// build-resources/icon.png (1024 px) plus icon.icns (macOS, via iconutil) and icon.ico (Windows).
+// build-resources/icon.png (1024 px) plus icon.icns (macOS, via iconutil) and icon.ico (Windows), and the macOS menu bar
+// template images trayTemplate.png / @2x.
 // Usage: node scripts/make-icon.mjs   (needs Google Chrome; macOS for the .icns step)
 import { spawn, execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -48,6 +49,18 @@ const draw = `(async () => {
   return c.toDataURL('image/png').split(',')[1]
 })()`
 const res = await send('Runtime.evaluate', { expression: draw, awaitPromise: true, returnByValue: true })
+// macOS menu bar (tray): template images, black glyph on transparent, 22 pt with @2x
+const tray = (S) => `(() => {
+  const c = document.createElement('canvas'); c.width = c.height = ${S}
+  const g = c.getContext('2d'); g.fillStyle = '#000'; g.font = '${Math.round(S * 0.86)}px TomoMark'; g.textAlign = 'center'; g.textBaseline = 'middle'
+  const m = g.measureText('伴'); const dy = (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2
+  g.fillText('伴', ${S} / 2, ${S} / 2 + dy)
+  return c.toDataURL('image/png').split(',')[1]
+})()`
+for (const [S, name] of [[22, 'trayTemplate.png'], [44, 'trayTemplate@2x.png']]) {
+  const t = await send('Runtime.evaluate', { expression: tray(S), returnByValue: true })
+  writeFileSync(join(out, name), Buffer.from(t.result.result.value, 'base64'))
+}
 ws.close(); proc.kill(); await sleep(300); rmSync(profile, { recursive: true, force: true })
 const png = Buffer.from(res.result.result.value, 'base64')
 writeFileSync(join(out, 'icon.png'), png)
@@ -79,4 +92,4 @@ if (process.platform === 'darwin') {
   execFileSync('iconutil', ['-c', 'icns', set, '-o', join(out, 'icon.icns')])
 }
 rmSync(tmp, { recursive: true, force: true })
-console.log('icon written:', ['icon.png', 'icon.ico', 'icon.icns'].filter((f) => existsSync(join(out, f))).join(', '))
+console.log('icon written:', ['icon.png', 'icon.ico', 'icon.icns', 'trayTemplate.png', 'trayTemplate@2x.png'].filter((f) => existsSync(join(out, f))).join(', '))

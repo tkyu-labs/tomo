@@ -51,6 +51,7 @@ const api: TomoApi = {
   retryEnginePrep: invoke(IPC.retryEnginePrep) as TomoApi['retryEnginePrep'],
   setAnswerMode: invoke(IPC.setAnswerMode) as TomoApi['setAnswerMode'],
   exportStudyLog: invoke(IPC.exportStudyLog) as TomoApi['exportStudyLog'],
+  onNavigate: (cb) => listen(IPC.navigate, cb),
 }
 
 contextBridge.exposeInMainWorld('tomo', api)

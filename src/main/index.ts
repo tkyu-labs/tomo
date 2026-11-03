@@ -1,9 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { IPC, type AppInfo } from '@shared/ipc'
 import { AppController } from './app/controller'
 import { Updater } from './app/updater'
+import { TomoTray } from './app/tray'
+import { readWindowState, restoreState, writeWindowState, type WindowState } from './app/window-state'
 import { findBrowsers } from './app/browsers'
 import { installChrome } from './app/chrome-install'
 import { devRuntime } from './hermes/runtime'
@@ -32,9 +34,15 @@ function packsSourceDir(): string {
   return existsSync(checkout) ? checkout : join(appRoot, 'test', 'fixtures', 'packs')
 }
 
+// One Tomo per data folder: starting it again brings the running window back (Electron keys the lock on userData).
+const primaryInstance = app.requestSingleInstanceLock()
+if (!primaryInstance) app.exit(0)
+
 let win: BrowserWindow | null = null
+/** Set once Tomo really quits (tray Quit, ⌘Q, update install); until then closing the window only hides it. */
+let quitting = false
 const send = (channel: string, ...args: unknown[]) => win?.webContents.send(channel, ...args)
-const updater = new Updater((s) => send(IPC.updateEvent, s))
+const updater = new Updater((s) => send(IPC.updateEvent, s), () => { quitting = true })
 
 // Development runs the engine from .dev/ (scripts/dev-hermes.sh). Installed apps — and development with
 // TOMO_ENGINE=install — download Hermes from GitHub into Tomo's folder on first start, using the bundled uv.
@@ -69,14 +77,36 @@ const controller = new AppController({
   },
 })
 
+const windowStateFile = join(paths.data, 'window-state.json')
+const WINDOW_DEFAULT = { width: 950, height: 600 }
+const WINDOW_MIN = { width: 720, height: 480 }
+
+function showWindow(page?: 'settings'): void {
+  if (!win) win = createWindow()
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+  if (page) send(IPC.navigate, page)
+}
+
+const tray = new TomoTray(appIconDir, {
+  open: () => showWindow(),
+  settings: () => showWindow('settings'),
+  quit: () => { quitting = true; app.quit() },
+  locale: () => controller.getState().prefs.locale,
+  canOpenSettings: () => controller.getState().setupDone,
+})
+
 function createWindow(): BrowserWindow {
+  const start = restoreState(readWindowState(windowStateFile), screen.getAllDisplays().map((d) => d.workArea), WINDOW_DEFAULT, WINDOW_MIN)
   const w = new BrowserWindow({
     autoHideMenuBar: true,
     icon: join(appIconDir, 'icon.png'),
-    width: 950,
-    height: 600,
-    minWidth: 720,
-    minHeight: 480,
+    width: start.width,
+    height: start.height,
+    ...(start.x !== undefined && start.y !== undefined ? { x: start.x, y: start.y } : { center: true }),
+    minWidth: WINDOW_MIN.width,
+    minHeight: WINDOW_MIN.height,
     title: 'Tomo（伴）',
     show: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
@@ -89,7 +119,34 @@ function createWindow(): BrowserWindow {
       webSecurity: true,
     },
   })
-  w.once('ready-to-show', () => w.show())
+  w.once('ready-to-show', () => {
+    if (start.maximized) w.maximize()
+    w.show()
+  })
+  // remember size and position (normal bounds, so un-maximising later returns to the student's size)
+  let saveTimer: NodeJS.Timeout | undefined
+  const save = () => {
+    if (w.isDestroyed() || w.isMinimized() || w.isFullScreen()) return
+    const b = w.getNormalBounds()
+    const state: WindowState = { x: b.x, y: b.y, width: b.width, height: b.height, maximized: w.isMaximized() }
+    try { writeWindowState(windowStateFile, state) } catch { /* not worth interrupting the student */ }
+  }
+  const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(save, 400) }
+  for (const ev of ['resize', 'move', 'maximize', 'unmaximize'] as const) w.on(ev as 'resize', saveSoon)
+  // Windows: never hold up a sign-out or shutdown
+  w.on('query-session-end', () => { quitting = true })
+  // closing hides the window; Tomo keeps running in the tray (chats and actions continue)
+  w.on('close', (e) => {
+    clearTimeout(saveTimer)
+    save()
+    if (quitting) return
+    e.preventDefault()
+    w.hide()
+    if (process.platform === 'win32' && !controller.settings.read().trayHintShown) {
+      tray.showCloseHint()
+      controller.settings.update((st) => { st.trayHintShown = true })
+    }
+  })
   // External links open in the system browser; the app window never navigates away.
   w.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
@@ -109,7 +166,7 @@ const handle = (channel: string, fn: (...args: never[]) => unknown) =>
 
 handle(IPC.appInfo, (): AppInfo => ({ version: app.getVersion(), platform: process.platform as AppInfo['platform'], dataDir: paths.data }))
 handle(IPC.getState, () => controller.getState())
-handle(IPC.setPrefs, (p: Parameters<AppController['setPrefs']>[0]) => controller.setPrefs(p))
+handle(IPC.setPrefs, async (p: Parameters<AppController['setPrefs']>[0]) => { await controller.setPrefs(p); tray.refresh() })
 handle(IPC.listPacks, () => controller.listPacks())
 handle(IPC.selectPack, (id: string | null) => controller.selectPack(id))
 handle(IPC.connectProvider, (c: Parameters<AppController['connectProvider']>[0], key?: string) => controller.connectProvider(c, key))
@@ -127,7 +184,7 @@ handle(IPC.installChrome, async () => {
   }
 })
 handle(IPC.finishSetup, (answers: Parameters<AppController['finishSetup']>[0]) => controller.finishSetup(answers))
-handle(IPC.completeSetup, () => controller.completeSetup())
+handle(IPC.completeSetup, async () => { const r = await controller.completeSetup(); tray.refresh(); return r })
 handle(IPC.displayValues, () => controller.displayValues())
 handle(IPC.listSessions, () => controller.listSessions())
 handle(IPC.createSession, () => controller.createSession())
@@ -158,7 +215,8 @@ handle(IPC.exportStudyLog, async () => {
 
 /**
  * No menu bar (UI decision: no menu for now). Windows / Linux: none at all — editing shortcuts still work in text
- * fields. macOS always shows the system menu bar; keep only the app menu and Edit (⌘C / ⌘V need the Edit roles).
+ * fields. macOS always shows the system menu bar; keep only the app menu, Edit (⌘C / ⌘V need the Edit roles) and Window
+ * (⌘W / ⌘M).
  */
 function setMenu(): void {
   if (process.platform !== 'darwin') {
@@ -168,22 +226,33 @@ function setMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
     { role: 'editMenu' },
+    // ⌘W closes (hides) the window like any Mac app; ⌘M minimises
+    { role: 'windowMenu', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'close' }] },
   ]))
 }
 
 app.whenReady().then(async () => {
+  if (!primaryInstance) return
   setMenu()
   updater.start()
   if (isDev && process.platform === 'darwin') app.dock?.setIcon(join(appIconDir, 'icon.png')) // packaged builds use icon.icns
   win = createWindow()
+  tray.create()
   if (controller.getState().setupDone) await controller.startEngine().catch(() => undefined)
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) win = createWindow()
-  })
+  // macOS: clicking the Dock icon brings the hidden window back
+  app.on('activate', () => showWindow())
 })
 
+app.on('second-instance', () => showWindow())
+
+// the window is only hidden on close, so this runs only when it was destroyed during quitting
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin' || quitting) app.quit()
 })
 
-app.on('before-quit', () => { void controller.stopEngine() })
+// ⌘Q, tray Quit, Windows shutdown and the updater all pass through here
+app.on('before-quit', () => {
+  quitting = true
+  tray.destroy()
+  void controller.stopEngine()
+})

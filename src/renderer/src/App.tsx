@@ -60,6 +60,7 @@ export function App() {
   }, [ready, loadRows])
 
   useEffect(() => window.tomo.onEngineState(() => void refresh()), [refresh])
+  useEffect(() => window.tomo.onNavigate((page) => setView({ kind: page })), [])
   useEffect(() => window.tomo.onEngineRequest((r) => setRequests((q) => [...q, r])), [])
   useEffect(() => window.tomo.onChatEvent((sessionId, e) => {
     let u = unmaskers.current.get(sessionId)

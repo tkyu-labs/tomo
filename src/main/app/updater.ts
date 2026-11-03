@@ -13,7 +13,8 @@ export class Updater {
   status: UpdateStatus = { state: 'idle', current: app.getVersion() }
   private timer?: NodeJS.Timeout
 
-  constructor(private readonly emit: (s: UpdateStatus) => void) {}
+  /** beforeInstall: lets the window close for real (closing normally only hides it to the tray). */
+  constructor(private readonly emit: (s: UpdateStatus) => void, private readonly beforeInstall: () => void = () => undefined) {}
 
   start(): void {
     autoUpdater.autoDownload = true
@@ -39,7 +40,9 @@ export class Updater {
 
   /** Quit and install the downloaded update now (otherwise it installs on the next quit). */
   installNow(): void {
-    if (this.status.state === 'ready') autoUpdater.quitAndInstall(true, true)
+    if (this.status.state !== 'ready') return
+    this.beforeInstall()
+    autoUpdater.quitAndInstall(true, true)
   }
 
   stop(): void {

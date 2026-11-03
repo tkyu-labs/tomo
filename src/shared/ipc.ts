@@ -168,6 +168,8 @@ export interface TomoApi {
   installUpdate(): Promise<void>
   onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
   retryEnginePrep(): Promise<void>
+  /** The tray menu asks the window to show a page. */
+  onNavigate(cb: (page: 'settings') => void): () => void
 }
 
 export const IPC = {
@@ -213,4 +215,5 @@ export const IPC = {
   retryEnginePrep: 'tomo:retry-engine-prep',
   setAnswerMode: 'tomo:set-answer-mode',
   exportStudyLog: 'tomo:export-study-log',
+  navigate: 'tomo:navigate',
 } as const

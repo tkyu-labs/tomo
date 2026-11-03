@@ -16,6 +16,8 @@ export interface Settings {
   participantId?: string
   /** GakuenAI relay URL for tester builds (set by the installer or TOMO_GAKUEN_URL). */
   gakuenUrl?: string
+  /** Windows: the "Tomo keeps running in the tray" notice was shown after the first close. */
+  trayHintShown?: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {

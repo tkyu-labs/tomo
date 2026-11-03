@@ -39,7 +39,7 @@ beforeAll(async () => {
   expect(res).toEqual({ ok: true })
   ctl.completeSetup()
 })
-afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); rmSync(dir, { recursive: true, force: true }) })
+afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); if (dir) rmSync(dir, { recursive: true, force: true }) })
 
 const turn = async (sessionId: string, text: string, topic?: string) => {
   const before = events.length

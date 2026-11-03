@@ -3,7 +3,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { packReleasePolicy, verifyArtifact } from '../../src/main/pack/verify'
 import { repoRoot } from '../helpers/hermes'
 
@@ -12,6 +12,7 @@ const identity = '^https://github\\.com/sigstore/gh-action-sigstore-python/\\.gi
 
 describe.skipIf(!process.env.TOMO_NETWORK_TESTS)('Sigstore verification', () => {
   const tuf = mkdtempSync(join(tmpdir(), 'tomo-tuf-'))
+  afterAll(() => rmSync(tuf, { recursive: true, force: true }))
   it('accepts the genuine artifact for the expected workflow identity', async () => {
     expect(await verifyArtifact(join(fx, 'action.py'), join(fx, 'action.py.sigstore.json'), { identity }, tuf)).toEqual({ ok: true })
   }, 120_000)
@@ -23,6 +24,5 @@ describe.skipIf(!process.env.TOMO_NETWORK_TESTS)('Sigstore verification', () => 
   it('rejects another signer (e.g. a pack release policy)', async () => {
     const res = await verifyArtifact(join(fx, 'action.py'), join(fx, 'action.py.sigstore.json'), packReleasePolicy('shonan-it', '0.1.0'), tuf)
     expect(res.ok).toBe(false)
-    rmSync(tuf, { recursive: true, force: true })
   }, 120_000)
 })

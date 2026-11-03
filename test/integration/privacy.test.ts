@@ -1,7 +1,7 @@
 // M3 "done when": with tomo-privacy loaded, no real identifier reaches the model, the session DB or a terminal
 // child; a {{PLACEHOLDER}} is filled into an allow-listed tool only after the student's approval.
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { HermesClient } from '../../src/main/hermes/client'
 import { Masker } from '../../src/shared/privacy/masker'
@@ -88,7 +88,7 @@ describe('tomo-privacy end to end', () => {
     const walk = (d: string) => { for (const n of readdirSync(d, { withFileTypes: true })) { const p = join(d, n.name); if (n.isDirectory()) walk(p); else files.push(p) } }
     walk(home.hermesHome)
     // Tomo's own plugin sources are not Hermes state
-    const state = files.filter((f) => !f.includes('/plugins/'))
+    const state = files.filter((f) => !f.includes(`${sep}plugins${sep}`))
     const offenders = state.filter((f) => existsSync(f) && leaks(readFileSync(f).toString('latin1')))
     expect(offenders).toEqual([])
   })
@@ -98,7 +98,7 @@ describe('tomo-privacy end to end', () => {
     const client = new HermesClient(hermes)
     const { session_id } = await client.createSession()
     const target = join(home.dir, 'filled.txt')
-    const events = await client.runTurn(session_id, `TOOL:write_file ARGS:{"path":"${target}","content":"ID: {{STUDENT_NUMBER}}"}`)
+    const events = await client.runTurn(session_id, `TOOL:write_file ARGS:${JSON.stringify({ path: target, content: 'ID: {{STUDENT_NUMBER}}' })}`)
     
     expect(approvals.length).toBe(1)
     expect(JSON.stringify(approvals[0])).toContain('[tomo-privacy]')

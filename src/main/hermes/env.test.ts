@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildHermesEnv } from './env'
 
@@ -16,11 +17,11 @@ describe('buildHermesEnv', () => {
     const env = buildHermesEnv({ base, hermesHome: '/t/hermes', cacheDir: '/t/cache' })
     expect(env).toMatchObject({
       HERMES_HOME: '/t/hermes',
-      HERMES_RUNTIME_DIR: '/t/hermes/tools',
-      HERMES_GATEWAY_LOCK_DIR: '/t/hermes/locks',
-      UV_CACHE_DIR: '/t/cache/uv',
-      GH_CONFIG_DIR: '/t/hermes/xdg/gh',
-      XDG_STATE_HOME: '/t/hermes/xdg/state',
+      HERMES_RUNTIME_DIR: join('/t/hermes', 'tools'),
+      HERMES_GATEWAY_LOCK_DIR: join('/t/hermes', 'locks'),
+      UV_CACHE_DIR: join('/t/cache', 'uv'),
+      GH_CONFIG_DIR: join('/t/hermes', 'xdg', 'gh'),
+      XDG_STATE_HOME: join('/t/hermes', 'xdg', 'state'),
     })
   })
 

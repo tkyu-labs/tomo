@@ -10,6 +10,8 @@ import { installPack, type LoadedPack } from './pack'
 import { packReleasePolicy, verifyArtifact, type SignerPolicy } from './verify'
 
 const run = promisify(execFile)
+// Windows: always the system bsdtar (a Git Bash GNU tar on PATH would read `C:` as a remote host)
+export const TAR = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
 export const PACKS_REPO = 'tkyu-labs/tomo-packs'
 
 /** The release is looked up by tag through the GitHub API (tags contain a slash: `<id>/v<version>`). */
@@ -26,7 +28,7 @@ export async function installPackArchive(archive: string, bundle: string, id: st
   if (!check.ok) throw new Error(`The ${id} pack failed its signature check: ${check.reason}`)
   const tmp = mkdtempSync(join(dataDir, '.unpack-'))
   try {
-    await run('tar', ['-xzf', archive, '-C', tmp]) // bsdtar on macOS, tar.exe on Windows 10+
+    await run(TAR, ['-xzf', archive, '-C', tmp]) // bsdtar on macOS and Windows 10+
     const pack = installPack(join(tmp, id), dataDir)
     if (pack.manifest.id !== id || pack.manifest.version !== version) throw new Error(`archive holds ${pack.manifest.id} ${pack.manifest.version}, expected ${id} ${version}`)
     return pack

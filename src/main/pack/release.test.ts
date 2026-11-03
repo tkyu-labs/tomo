@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { installPackArchive, releaseAssets } from './release'
+import { installPackArchive, releaseAssets, TAR } from './release'
 
 const root = resolve(import.meta.dirname, '../../..')
 const dirs: string[] = []
@@ -13,7 +13,7 @@ afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, f
 function fixtureArchive(): string {
   const out = join(tmp(), 'example-u-0.0.1.tar.gz')
   // the same layout as tomo-packs' release workflow: tar -C packs <id>
-  execFileSync('tar', ['-czf', out, '-C', join(root, 'test/fixtures/packs'), 'example-u'])
+  execFileSync(TAR, ['-czf', out, '-C', join(root, 'test/fixtures/packs'), 'example-u'])
   return out
 }
 

@@ -12,6 +12,8 @@ export interface HermesRuntime {
 export interface HermesProcessOptions {
   runtime: HermesRuntime
   env: Record<string, string>
+  /** Script that starts the gateway (Tomo's engine-helpers/tomo_gateway.py); default `python -m tui_gateway.entry`. */
+  launcher?: string
   /** Answers server→client requests (approval, clarify, secret, …). */
   onServerRequest?: (method: string, params: unknown) => Promise<unknown>
   readyTimeoutMs?: number
@@ -65,7 +67,7 @@ export class HermesProcess extends EventEmitter<Events> {
     if (this.state === 'ready' || this.state === 'starting') return
     this.stopping = false
     this.setState('starting')
-    const child = spawn(this.opts.runtime.python, ['-m', 'tui_gateway.entry'], {
+    const child = spawn(this.opts.runtime.python, this.opts.launcher ? [this.opts.launcher] : ['-m', 'tui_gateway.entry'], {
       cwd: this.opts.runtime.root,
       env: this.opts.env,
       stdio: ['pipe', 'pipe', 'pipe'],

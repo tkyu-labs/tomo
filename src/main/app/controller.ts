@@ -162,7 +162,7 @@ export class AppController {
     await this.prepareEngine() // the sign-in runs Hermes' own code
     mkdirSync(this.opts.paths.hermesHome, { recursive: true })
     const env = buildHermesEnv({ base: this.opts.baseEnv, hermesHome: this.opts.paths.hermesHome, runtimeDir: this.runtimeDir(), cacheDir: join(this.opts.paths.data, 'cache') })
-    const helper = join(this.opts.helpersDir ?? join(this.opts.pluginsDir, '..', 'engine-helpers'), 'codex_login.py')
+    const helper = join(this.helpersDir(), 'codex_login.py')
     this.login.start(this.runtime(), helper, env, (e) => this.opts.emit.chatgptLogin?.(e))
   }
 
@@ -312,6 +312,8 @@ export class AppController {
       this.hermes = new HermesProcess({
         runtime: this.runtime(),
         env,
+        // Windows: ties the browser and terminal commands to the engine's lifetime (see the script)
+        launcher: join(this.helpersDir(), 'tomo_gateway.py'),
         autoRestart: true,
         onServerRequest: (method, params) => this.onServerRequest(method, params),
       })
@@ -320,6 +322,10 @@ export class AppController {
       this.hermes.on('event', (raw) => this.forwardEvent(raw))
     }
     await this.hermes.start()
+  }
+
+  private helpersDir(): string {
+    return this.opts.helpersDir ?? join(this.opts.pluginsDir, '..', 'engine-helpers')
   }
 
   async stopEngine(): Promise<void> {

@@ -21,3 +21,18 @@
 .card-steps a, .card-sources a { color: var(--accent); word-break: break-all; }
 .card-last-step { color: var(--accent); }
 .card-note { color: var(--text-muted); font-size: 12px; }
+/* Hatch: the examples line has a fixed two-line height, so hovering a chip never moves the chips under the mouse */
+.hatch-note.examples { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; height: 3em; min-height: 3em; line-height: 1.5; overflow: hidden; }
+/* selecting a chip must not change its width (no weight change) */
+.hatch-chip-btn.selected { font-weight: inherit; }
+/* school pack choice: a clear selected state (ring + check) */
+.pack-card { position: relative; transition: box-shadow .15s ease; }
+.pack-card.selected { box-shadow: var(--shadow-card), 0 0 0 2px var(--accent); }
+.pack-card .pack-check { display: none; position: absolute; top: 12px; right: 12px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--on-accent); place-items: center; }
+.pack-card.selected .pack-check { display: grid; }
+.pack-card.selected .badge-pill { visibility: hidden; }
+.pack-card:focus-visible { outline: none; box-shadow: var(--shadow-card), var(--focus-ring); }
+.hatch-saved-as { margin-left: 8px; color: var(--text-faint); font-size: 12px; font-weight: 400; white-space: nowrap; }
+.model-select { width: 100%; }
+.error-text { color: var(--danger); }
+.engine-pill.missing { color: var(--danger); }

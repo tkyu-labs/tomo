@@ -5,7 +5,7 @@ import { pick, type Answers } from '@shared/pack/types'
 import { useCopy, useLocale, type Locale } from '../i18n'
 import { Icon, type IconName } from '../ui/Icon'
 import { HatchPage, HatchSummary } from './HatchFlow'
-import { ProviderSheet, providerLabel } from './ProviderSheet'
+import { ProviderSheet, providerLabel, suggestModel } from './ProviderSheet'
 
 const STEP = { welcome: 0, privacy: 1, ai: 2, pack: 3, hatch: 4, browser: 5, finish: 6 } as const
 const FINISH_TASKS: FinishTask[] = ['engine', 'settings', 'profile', 'start', 'test']
@@ -79,7 +79,9 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
   const connectGakuen = async () => {
     setError(null)
     try {
-      await window.tomo.connectProvider({ id: 'gakuen', model: 'deepseek-flash', reasoning: 'low' }, gakuenKey.trim())
+      const res = await window.tomo.listProviderModels({ id: 'gakuen', model: '' }, gakuenKey.trim())
+      if (!res.ok || !res.models) throw new Error(res.error === 'wrong-key' ? c('GakuenAI did not accept this key.', 'GakuenAI 不接受这个 Key。', 'GakuenAI がこのキーを受け付けませんでした。') : c('Cannot reach GakuenAI.', '无法连接 GakuenAI。', 'GakuenAI に接続できません。'))
+      await window.tomo.connectProvider({ id: 'gakuen', model: suggestModel(res.models), reasoning: 'low' }, gakuenKey.trim())
       setGakuenKey('')
       await refresh()
     } catch (e) {
@@ -102,10 +104,17 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
         <div className="hatch-brand">
           <div className="brand-mark">伴</div>
           <strong>Tomo</strong>
-          <span className="engine-pill ready" role="status">
-            <Icon name="check" size={11} />
-            {c('AI engine ready', 'AI 引擎已就绪', 'AI エンジン準備完了')}
-          </span>
+          {state.engine.installed ? (
+            <span className="engine-pill ready" role="status" data-testid="engine-pill">
+              <Icon name="check" size={11} />
+              {c('AI engine ready', 'AI 引擎已就绪', 'AI エンジン準備完了')}
+            </span>
+          ) : (
+            <span className="engine-pill missing" role="alert" data-testid="engine-pill">
+              <Icon name="info" size={11} />
+              {c('AI engine missing — reinstall Tomo', 'AI 引擎缺失，请重新安装 Tomo', 'AI エンジンがありません。Tomo を再インストールしてください')}
+            </span>
+          )}
         </div>
         <div className="setup-progress" aria-label="Setup progress">
           {steps.map((label, i) => (
@@ -193,9 +202,10 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
               <div className="setup-visual"><Icon name="box" size={30} /></div>
               <h1>{c('Choose your school pack', '选择你的学校能力包', '学校パックを選択')}</h1>
               <p>{c('A school pack adds your university’s knowledge, portal guide and first-run questions. Packs are made by the community and are not affiliated with the schools.', '学校能力包会加入你所在大学的资料、门户指南和初次设置问题。能力包由社区制作，与学校无隶属关系。', '学校パックは大学の情報、ポータルの案内、初回の質問を追加します。パックはコミュニティ製で、学校とは無関係です。')}</p>
-              <div className="pack-card-list" style={{ marginTop: 0 }}>
+              <div className="pack-card-list" role="radiogroup" aria-label={c('School pack', '学校能力包', '学校パック')} style={{ marginTop: 0 }}>
                 {packs.map((p) => (
-                  <div key={p.id} role="button" tabIndex={0} className={`pack-card ${packId === p.id ? 'selected' : ''}`} data-testid={`pack-${p.id}`} onClick={() => setPackId(p.id)} onKeyDown={(e) => e.key === 'Enter' && setPackId(p.id)}>
+                  <div key={p.id} role="radio" aria-checked={packId === p.id} tabIndex={0} className={`pack-card ${packId === p.id ? 'selected' : ''}`} data-testid={`pack-${p.id}`} onClick={() => setPackId(p.id)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setPackId(p.id)}>
+                    <span className="pack-check" aria-hidden="true"><Icon name="check" size={12} /></span>
                     <div className="pack-card-header">
                       <div className="pack-card-title-group">
                         <Icon name="box" size={20} />
@@ -208,7 +218,8 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
                     </div>
                   </div>
                 ))}
-                <div role="button" tabIndex={0} className={`pack-card ${packId === null ? 'selected' : ''}`} onClick={() => setPackId(null)} onKeyDown={(e) => e.key === 'Enter' && setPackId(null)}>
+                <div role="radio" aria-checked={packId === null} tabIndex={0} className={`pack-card ${packId === null ? 'selected' : ''}`} data-testid="pack-none" onClick={() => setPackId(null)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setPackId(null)}>
+                  <span className="pack-check" aria-hidden="true"><Icon name="check" size={12} /></span>
                   <div className="pack-card-header">
                     <div className="pack-card-title-group">
                       <Icon name="shield" size={20} />

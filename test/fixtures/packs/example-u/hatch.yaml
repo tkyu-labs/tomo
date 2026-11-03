@@ -51,3 +51,15 @@ questions:
     label: { en: "May Tomo read your grades?", zh: "Tomo 可以读取成绩吗？", ja: "成績を読んでもよいですか？" }
     why: { en: "For credit checks.", zh: "核对学分。", ja: "単位確認のため。" }
     remember: "Grades: {answer}."
+  - id: enjoy
+    section: basics
+    ask: setup
+    type: multi
+    max_select: 3
+    options:
+      - { value: programming, label: { en: "Programming and software", zh: "编程与软件", ja: "プログラミング・ソフトウェア" }, examples: ["サンプルプログラミング演習Ａ", "サンプルソフトウェア設計論", "サンプルアルゴリズムとデータ構造", "サンプルWebアプリケーション開発", "サンプルオブジェクト指向プログラミング"] }
+      - { value: math, label: { en: "Mathematics", zh: "数学", ja: "数学" }, examples: ["サンプル線形代数", "サンプル微分積分"] }
+      - { value: language, label: { en: "Languages", zh: "语言", ja: "語学" }, examples: ["サンプル日本語表現法", "サンプル英語コミュニケーション", "サンプル中国語会話入門", "サンプル韓国語基礎", "サンプルドイツ語初級"] }
+    label: { en: "Subjects you enjoy", zh: "喜欢的科目", ja: "好きな科目" }
+    why: { en: "To suggest courses.", zh: "用于推荐课程。", ja: "科目の提案に使います。" }
+    remember: "Enjoys: {answer}."

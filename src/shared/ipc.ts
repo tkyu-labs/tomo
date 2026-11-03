@@ -28,6 +28,12 @@ export interface Prefs {
   uiScale: UiScale
 }
 
+export type ChatGptLoginEvent =
+  | { event: 'code'; user_code: string; verification_url: string }
+  | { event: 'approved'; models: string[] }
+  | { event: 'expired' }
+  | { event: 'error'; message: string }
+
 export interface PackSummary {
   id: string
   manifest: PackManifest
@@ -45,7 +51,8 @@ export interface AppState {
   /** The GakuenAI relay URL is configured in this build. */
   gakuenAvailable: boolean
   pack?: PackSummary
-  engine: { state: EngineState; version: string }
+  /** installed: the engine files exist in this installation (checked at start, not assumed) */
+  engine: { state: EngineState; version: string; installed: boolean }
   answerMode: AnswerMode
 }
 
@@ -107,6 +114,12 @@ export interface TomoApi {
   listPacks(): Promise<PackSummary[]>
   selectPack(id: string | null): Promise<void>
   connectProvider(choice: ProviderChoice, key?: string): Promise<void>
+  /** "Test": ask the provider for its models with this key (nothing is saved). */
+  listProviderModels(choice: ProviderChoice, key: string): Promise<{ ok: boolean; models?: string[]; error?: 'wrong-key' | 'unreachable' | 'no-models'; detail?: string }>
+  /** ChatGPT sign-in (OpenAI, device code). Events: code → approved (with models) | expired | error. */
+  startChatGptLogin(): Promise<void>
+  cancelChatGptLogin(): Promise<void>
+  onChatGptLogin(cb: (e: ChatGptLoginEvent) => void): () => void
   findBrowsers(): Promise<BrowserInfo[]>
   /** macOS only: download Google Chrome, verify Google's signature, copy to ~/Applications. */
   installChrome(): Promise<{ ok: boolean; message?: string }>
@@ -148,6 +161,10 @@ export const IPC = {
   listPacks: 'tomo:list-packs',
   selectPack: 'tomo:select-pack',
   connectProvider: 'tomo:connect-provider',
+  listProviderModels: 'tomo:list-provider-models',
+  startChatGptLogin: 'tomo:chatgpt-login-start',
+  cancelChatGptLogin: 'tomo:chatgpt-login-cancel',
+  chatGptLogin: 'tomo:chatgpt-login',
   findBrowsers: 'tomo:find-browsers',
   installChrome: 'tomo:install-chrome',
   chromeStage: 'tomo:chrome-stage',

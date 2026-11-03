@@ -21,6 +21,8 @@ import { privatePayload, writeAnswerMode, writeProfile } from '../setup/profile'
 import { PROVIDER_KEY_ENV, providerConfig } from '../setup/providers'
 import { SettingsFile, type Settings } from './settings'
 import { StudyLog } from './study-log'
+import { ChatGptLogin, type LoginEvent } from './chatgpt-login'
+import { listProviderModels } from './provider-check'
 
 export const HERMES_VERSION = '0.21.7'
 
@@ -34,6 +36,8 @@ export interface ControllerOptions {
   pluginsDir: string
   /** Hermes tool runtime (agent-browser, …); default `<hermesHome>/tools`. Development reuses `.dev/home/tools`. */
   runtimeDir?: string
+  /** engine-helpers folder (ChatGPT sign-in). */
+  helpersDir?: string
   /** Base environment for the gateway (the app's own environment). */
   baseEnv: Record<string, string | undefined>
   gakuenUrl?: string
@@ -41,6 +45,7 @@ export interface ControllerOptions {
   emit: {
     chat(sessionId: string, e: ChatEvent): void
     request(r: EngineRequest): void
+    chatgptLogin?(e: LoginEvent): void
     setupTask(u: TaskUpdate): void
     engineState(state: AppState['engine']['state']): void
   }
@@ -101,7 +106,7 @@ export class AppController {
       keyHint: key ? `${key.slice(0, 3)}…${key.slice(-4)}` : undefined,
       gakuenAvailable: !!this.gakuenUrl(s),
       pack: pack ? { id: pack.manifest.id, manifest: pack.manifest, hatch: pack.hatch } : undefined,
-      engine: { state: this.hermes?.state ?? 'stopped', version: HERMES_VERSION },
+      engine: { state: this.hermes?.state ?? 'stopped', version: HERMES_VERSION, installed: existsSync(this.opts.runtime.python) && existsSync(join(this.opts.runtime.root, 'tui_gateway')) },
       answerMode: s.answerMode,
     }
   }
@@ -135,6 +140,25 @@ export class AppController {
   selectPack(id: string | null): void {
     if (id) installPack(join(this.opts.packsSourceDir, id), this.opts.paths.data)
     this.settings.update((s) => { s.packId = id ?? undefined; s.answers = {} })
+  }
+
+  async listProviderModels(choice: ProviderChoice, key: string) {
+    const sel = choice.id === 'gakuen' ? { ...choice, baseUrl: this.gakuenUrl() } : choice
+    return listProviderModels(sel, key)
+  }
+
+  private login = new ChatGptLogin()
+
+  /** ChatGPT sign-in; Hermes stores the tokens in HERMES_HOME/auth.json (never in Tomo's files). */
+  startChatGptLogin(): void {
+    mkdirSync(this.opts.paths.hermesHome, { recursive: true })
+    const env = buildHermesEnv({ base: this.opts.baseEnv, hermesHome: this.opts.paths.hermesHome, runtimeDir: this.runtimeDir(), cacheDir: join(this.opts.paths.data, 'cache') })
+    const helper = join(this.opts.helpersDir ?? join(this.opts.pluginsDir, '..', 'engine-helpers'), 'codex_login.py')
+    this.login.start(this.opts.runtime, helper, env, (e) => this.opts.emit.chatgptLogin?.(e))
+  }
+
+  cancelChatGptLogin(): void {
+    this.login.cancel()
   }
 
   connectProvider(choice: ProviderChoice, key?: string): void {
@@ -171,6 +195,7 @@ export class AppController {
         if (!s.provider) throw new Error('No AI provider connected.')
         const keyEnv = PROVIDER_KEY_ENV[s.provider.id]
         if (keyEnv && !this.secrets.read().keys[keyEnv]) throw new Error('No key saved for the AI provider.')
+        if (s.provider.id === 'openai' && !existsSync(join(this.opts.paths.hermesHome, 'auth.json'))) throw new Error('Not signed in to ChatGPT.')
         // identifiers go to the encrypted store, everything else to settings.json
         const identifiers = pack ? identifiersFrom(pack.hatch, answers) : []
         const idQuestions = new Set(pack?.hatch.questions.filter((q) => q.type === 'identifier').map((q) => q.id))

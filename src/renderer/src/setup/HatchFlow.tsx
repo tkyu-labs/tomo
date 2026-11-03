@@ -25,6 +25,12 @@ const ui = {
   edit: { en: "Edit", zh: "修改", ja: "編集" },
   chars: { en: "characters of", zh: "字符，预算", ja: "文字／予算" },
   example: { en: "e.g. ", zh: "例：", ja: "例：" },
+  savedAs: { en: "saved as", zh: "保存为", ja: "保存形式" },
+  savedAsWhy: {
+    en: "Only this computer keeps the real value. Tomo's AI engine and the AI model see the placeholder.",
+    zh: "真实值只保存在这台电脑上，Tomo 的 AI 引擎和 AI 模型看到的是占位符。",
+    ja: "実際の値はこのコンピューターにだけ保存され、Tomo の AI エンジンと AI モデルにはプレースホルダーが渡されます。",
+  },
 }
 
 export function HatchPage({
@@ -245,7 +251,7 @@ export function HatchSummary({ hatch, answers, lang, onEdit }: { hatch: Hatch; a
                     {!isAnswered(q, answers[q.id])
                       ? t(ui.skipped)
                       : q.type === "identifier"
-                        ? `{{${q.variable}}}`
+                        ? <>{identifierText(answers[q.id])}<span className="hatch-saved-as" title={t(ui.savedAsWhy)}>🔒 {t(ui.savedAs)} {`{{${q.variable}}}`}</span></>
                         : q.type === "multi" || q.type === "choice" || q.type === "scale"
                           ? localLabel(q, answers[q.id], lang)
                           : answerText(q, answers[q.id])}
@@ -279,4 +285,10 @@ function localLabel(q: HatchQuestion, a: Answer | undefined, lang: Lang) {
     return [...m.values.map(lab), ...(m.other?.trim() ? [m.other.trim()] : [])].join(lang === "en" ? ", " : "、")
   }
   return lab(a as string)
+}
+
+function identifierText(a: Answer | undefined): string {
+  if (typeof a === "string") return a
+  if (a && typeof a === "object" && !("values" in a)) return Object.values(a as Record<string, string>).filter((v) => v?.trim()).join(" · ")
+  return ""
 }

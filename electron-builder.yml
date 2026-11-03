@@ -45,6 +45,7 @@ win:
     - target: nsis
       arch: [x64]
 nsis:
+  artifactName: Tomo-Setup-${version}.${ext}   # same name locally and on GitHub (latest.yml points at it)
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: false

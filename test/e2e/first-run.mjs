@@ -27,6 +27,28 @@ const clickText = (sel, text) => app.evaluate(`[...document.querySelectorAll(${J
 const type = (sel, value) => app.evaluate(`(() => { const el = ${$(sel)}; const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`)
 const next = async () => { await click('[data-testid=setup-next]'); await sleep(250) }
 const report = {}
+/** Moves the real mouse over every chip of each question that shows course examples; counts layout shifts. */
+async function hoverCheck() {
+  const qs = await app.evaluate(`[...document.querySelectorAll('.hatch-question')].map((q, i) => q.querySelector('.hatch-note.examples') ? i : -1).filter((i) => i >= 0)`)
+  let moved = 0, shown = false
+  for (const qi of qs) {
+    const Q = `document.querySelectorAll('.hatch-question')[${qi}]`
+    await app.evaluate(`${Q}.scrollIntoView({ block: 'center' }), true`); await sleep(200)
+    const probe = `(() => { const q = ${Q}; const b = [...q.querySelectorAll('.hatch-chip-btn')].map((x) => x.getBoundingClientRect()); return JSON.stringify({ h: Math.round(q.getBoundingClientRect().height), chips: b.map((x) => [Math.round(x.x), Math.round(x.y)]) }) })()`
+    const before = await app.evaluate(probe)
+    const n = await app.evaluate(`${Q}.querySelectorAll('.hatch-chip-btn').length`)
+    for (let i = 0; i < n; i++) {
+      const [x, y] = JSON.parse(await app.evaluate(`(() => { const b = ${Q}.querySelectorAll('.hatch-chip-btn')[${i}].getBoundingClientRect(); return JSON.stringify([b.x + b.width / 2, b.y + b.height / 2]) })()`))
+      await app.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }); await sleep(100)
+      if (!shown) shown = await app.evaluate(`${Q}.querySelector('.hatch-note.examples').textContent.trim().length > 5`)
+      if ((await app.evaluate(probe)) !== before) moved++
+    }
+  }
+  report.hoverChecked = (report.hoverChecked ?? 0) + qs.length
+  report.hoverShift = (report.hoverShift ?? 0) + moved
+  if (qs.length) report.examplesShown = report.examplesShown || shown
+}
+
 const audits = {}
 const audit = async (key) => { audits[key] = await app.evaluate(SCAN) }
 
@@ -79,7 +101,8 @@ try {
     await type('.hatch-aliases input:nth-child(2)', 'リン メイ')
     await type('#hatch-student_number', '23B0001')
     report.hatchPages = 1
-    while (await app.evaluate(`!document.querySelector('.user-md')`)) { await next(); report.hatchPages++ }
+    while (await app.evaluate(`!document.querySelector('.user-md')`)) { await hoverCheck(); await next(); report.hatchPages++ }
+    report.summaryName = await app.evaluate(`[...document.querySelectorAll('.hatch-summary-row')].map((r) => r.textContent).find((t) => t.includes('Lin Mei'))`)
     await next()
   } else {
   await type('.hatch-aliases input:nth-child(1)', 'Lin Mei')
@@ -88,19 +111,7 @@ try {
   await clickText('.hatch-chip-btn', '3'); await sleep(100)
   await clickText('.hatch-chip-btn', "Yes, but only while I'm watching"); await sleep(100)
   report.prefilledFaculty = await app.evaluate(`[...document.querySelectorAll('.hatch-chip-btn.selected')].map((b) => b.textContent)`)
-  // hovering chips with long examples must not move anything (the examples line has a fixed height)
-  const chips = await app.evaluate(`[...document.querySelectorAll('.hatch-question')].at(-1).querySelectorAll('.hatch-chip-btn').length`)
-  await app.evaluate(`[...document.querySelectorAll('.hatch-question')].at(-1).scrollIntoView({ block: 'center' }), true`); await sleep(200)
-  const probe = `(() => { const q = [...document.querySelectorAll('.hatch-question')].at(-1); const r = q.getBoundingClientRect(); const b = [...q.querySelectorAll('.hatch-chip-btn')].map((x) => x.getBoundingClientRect()); return JSON.stringify({ h: r.height, chips: b.map((x) => [Math.round(x.x), Math.round(x.y)]) }) })()`
-  const before = await app.evaluate(probe)
-  let moved = 0
-  for (let i = 0; i < chips; i++) {
-    const [x, y] = JSON.parse(await app.evaluate(`(() => { const b = [...document.querySelectorAll('.hatch-question')].at(-1).querySelectorAll('.hatch-chip-btn')[${i}].getBoundingClientRect(); return JSON.stringify([b.x + b.width / 2, b.y + b.height / 2]) })()`))
-    await app.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }); await sleep(120)
-    if (i === 0) report.examplesShown = await app.evaluate(`[...document.querySelectorAll('.hatch-note.examples')].at(-1).textContent.trim().length > 5`)
-    if ((await app.evaluate(probe)) !== before) moved++
-  }
-  report.hoverShift = moved
+  await hoverCheck()
   await audit('en:hatch')
   await next() // summary
   report.userMd = await app.evaluate(`document.querySelector('.user-md')?.textContent`)
@@ -148,7 +159,7 @@ try {
   report.memory = await app.evaluate(`[...document.querySelectorAll('[data-testid=memory-entry]')].map((e) => e.textContent)`)
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported) && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported) && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

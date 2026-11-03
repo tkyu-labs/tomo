@@ -49,5 +49,5 @@ export async function launchApp({ port = 9351, env = {}, args = [], executable }
     throw new Error('waitFor timed out: ' + expression + '\n' + log.slice(-3000))
   }
   const close = async () => { ws.close(); proc.kill(); await sleep(300) }
-  return { evaluate, waitFor, send, close, log: () => log }
+  return { evaluate, waitFor, send, close, log: () => log, pid: proc.pid, proc }
 }

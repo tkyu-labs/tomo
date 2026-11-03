@@ -10,8 +10,9 @@ import { startStubModel } from '../stub-model/server.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const REAL = !!process.env.TOMO_E2E_REAL && !!process.env.OPENAI_API_KEY
-const data = mkdtempSync(join(tmpdir(), 'tomo-e2e-'))
-const stub = await startStubModel()
+// TOMO_E2E_DATA: keep the finished data folder (other checks start from a set-up Tomo); TOMO_E2E_STUB_PORT: fixed stub port
+const data = process.env.TOMO_E2E_DATA || mkdtempSync(join(tmpdir(), 'tomo-e2e-'))
+const stub = await startStubModel({ port: Number(process.env.TOMO_E2E_STUB_PORT) || 0 })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // TOMO_E2E_APP: run an installed app binary instead (with its bundled packs); TOMO_E2E_PACK: pack to pick.
 const PACK = process.env.TOMO_E2E_PACK ?? 'example-u'
@@ -177,5 +178,5 @@ try {
 } finally {
   await app.close()
   await stub.close()
-  rmSync(data, { recursive: true, force: true })
+  if (!process.env.TOMO_E2E_DATA) rmSync(data, { recursive: true, force: true })
 }

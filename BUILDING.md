@@ -49,8 +49,10 @@ On a Windows 10/11 x64 PC, in Git Bash (uv can be a single `uv.exe` on PATH; `co
 shell scripts are checked out with LF through `.gitattributes`):
 
 ```sh
-npm run dist:win                  # → release/Tomo Setup <version>.exe (unsigned, per-user install) + release/win-unpacked
+npm run dist:win                  # → release/Tomo-Setup-<version>.exe (unsigned, per-user install) + release/win-unpacked
 TOMO_E2E_APP="$(cygpath -w "$PWD/release/win-unpacked/Tomo.exe")" TOMO_E2E_PACK=shonan-it node test/e2e/first-run.mjs
+# nothing outlives Tomo: quit and hard kill with the browser and a background command running (needs network)
+TOMO_E2E_APP="$(cygpath -w "$PWD/release/win-unpacked/Tomo.exe")" TOMO_E2E_PACK=shonan-it node test/e2e/quit.mjs
 ```
 
 Then check on that PC:

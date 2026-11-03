@@ -3,7 +3,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { packReleasePolicy, verifyArtifact } from '../../src/main/pack/verify'
 import { repoRoot } from '../helpers/hermes'
 
@@ -11,7 +11,9 @@ const fx = join(repoRoot, 'test/fixtures/sigstore')
 const identity = '^https://github\\.com/sigstore/gh-action-sigstore-python/\\.github/workflows/release\\.yml@refs/tags/v3\\.5\\.0$'
 
 describe.skipIf(!process.env.TOMO_NETWORK_TESTS)('Sigstore verification', () => {
-  const tuf = mkdtempSync(join(tmpdir(), 'tomo-tuf-'))
+  // created in beforeAll: the describe body also runs when the suite is skipped
+  let tuf = ''
+  beforeAll(() => { tuf = mkdtempSync(join(tmpdir(), 'tomo-tuf-')) })
   afterAll(() => rmSync(tuf, { recursive: true, force: true }))
   it('accepts the genuine artifact for the expected workflow identity', async () => {
     expect(await verifyArtifact(join(fx, 'action.py'), join(fx, 'action.py.sigstore.json'), { identity }, tuf)).toEqual({ ok: true })

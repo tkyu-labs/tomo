@@ -18,8 +18,8 @@
     "test:real": "TOMO_REAL_MODEL=1 vitest run test/real",
     "test:e2e": "electron-vite build && node test/e2e/smoke.mjs && node test/e2e/window.mjs && node test/e2e/first-run.mjs",
     "test:py": "node scripts/run-pytest.mjs",
-    "dist:mac": "node scripts/fetch-uv.mjs && node scripts/prepare-packs.mjs && electron-vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never -c.electronDownload.cache=.dev/cache/electron",
-    "dist:win": "node scripts/fetch-uv.mjs win32-x64 && node scripts/prepare-packs.mjs && electron-vite build && electron-builder --win --publish never -c.electronDownload.cache=.dev/cache/electron",
+    "dist:mac": "node -e \"require('node:fs').rmSync('release',{recursive:true,force:true})\" && node scripts/fetch-uv.mjs && node scripts/prepare-packs.mjs && electron-vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never -c.electronDownload.cache=.dev/cache/electron",
+    "dist:win": "node -e \"require('node:fs').rmSync('release',{recursive:true,force:true})\" && node scripts/fetch-uv.mjs win32-x64 && node scripts/prepare-packs.mjs && electron-vite build && electron-builder --win --publish never -c.electronDownload.cache=.dev/cache/electron",
     "test:unit": "vitest run src",
     "test:e2e:quit": "electron-vite build && node test/e2e/quit.mjs"
   },

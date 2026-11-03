@@ -100,4 +100,4 @@ engine step after the update.
 ### Checking an update locally
 
 `node test/e2e/update-check.mjs <installed app binary> <folder with a newer build>` serves the folder as an update feed
-(e.g. built with `-c.extraMetadata.version=<higher> -c.directories.output=release-next`) and reports the states.
+(e.g. built with `-c.extraMetadata.version=<higher> -c.directories.output=.dev/release-next`) and reports the states; delete `.dev/release-next` afterwards.

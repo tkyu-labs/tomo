@@ -82,8 +82,8 @@ Tomo quits (Settings → About shows the state and offers "Restart now"). macOS 
 | `APPLE_APP_SPECIFIC_PASSWORD` | an app-specific password from account.apple.com → Sign-In and Security |
 | `APPLE_TEAM_ID` | your 10-character Team ID (developer.apple.com → Membership) |
 
-Without the macOS secrets the workflow still builds, unsigned (no automatic updates on macOS). Windows builds are
-unsigned (SmartScreen warns once); updates work regardless.
+Without the macOS secrets the workflow still builds, unsigned (no automatic updates on macOS). The certificate is
+given to the macOS job only. Windows builds are always unsigned (SmartScreen warns once); updates work regardless.
 
 ### Making a release
 

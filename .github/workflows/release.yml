@@ -8,7 +8,17 @@ on:
 permissions:
   contents: write
 jobs:
+  # One draft release up front: with none there, parallel uploads each create their own draft (electron-builder race)
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --draft --title "${GITHUB_REF_NAME#v}" --notes "" --verify-tag
   build:
+    needs: draft
     strategy:
       fail-fast: false
       matrix:
@@ -38,18 +48,42 @@ jobs:
         run: |
           node scripts/fetch-uv.mjs ${{ matrix.target == 'win' && 'win32-x64' || '' }}
           node scripts/prepare-packs.mjs
+      - name: Check the macOS signing certificate
+        if: matrix.target == 'mac'
+        shell: bash
+        env:
+          P12_B64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          P12_PASS: ${{ secrets.MAC_CERT_PASSWORD }}
+        # prints counts only, never the certificate or its subject
+        run: |
+          if [ -z "$P12_B64" ]; then echo "no MAC_CERT_P12_BASE64: the macOS build will be unsigned"; exit 0; fi
+          f="$RUNNER_TEMP/check.p12"
+          if ! printf '%s' "$P12_B64" | base64 --decode > "$f" 2>/dev/null; then echo "::error::MAC_CERT_P12_BASE64 is not valid base64"; exit 1; fi
+          echo "decoded: $(wc -c < "$f") bytes"
+          dump() { openssl pkcs12 -in "$f" -passin env:P12_PASS -nodes "$@" 2>/dev/null; }
+          out="$(dump || dump -legacy)" || { echo "::error::cannot open the .p12 (wrong MAC_CERT_PASSWORD or damaged file)"; rm -f "$f"; exit 1; }
+          rm -f "$f"
+          certs=$(grep -c 'BEGIN CERTIFICATE' <<<"$out" || true)
+          keys=$(grep -c -E 'BEGIN ([A-Z]+ )?PRIVATE KEY' <<<"$out" || true)
+          devid=$(grep -c 'Developer ID Application' <<<"$out" || true)
+          echo "certificates: $certs, private keys: $keys, Developer ID Application certificate: $([ "$devid" -gt 0 ] && echo yes || echo no)"
+          if [ "$keys" -eq 0 ]; then echo "::error::the .p12 has no private key: export the certificate together with its key (Keychain Access → My Certificates)"; exit 1; fi
+          if [ "$devid" -eq 0 ]; then echo "::error::the .p12 has no Developer ID Application certificate"; exit 1; fi
       - name: Build and upload
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAIN_VITE_GAKUEN_URL: ${{ secrets.GAKUEN_URL }}
-          # macOS signing + notarisation (skipped, unsigned build, when the secrets are not set)
-          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS signing + notarisation, macOS job only (electron-builder signs with CSC_LINK on every platform, and the
+          # Developer ID certificate cannot sign Windows code). Unsigned build when the secrets are not set.
+          # Windows builds are always unsigned (no Windows certificate; SmartScreen warns once, updates still work).
+          CSC_LINK: ${{ matrix.target == 'mac' && secrets.MAC_CERT_P12_BASE64 || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.target == 'mac' && secrets.MAC_CERT_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.target == 'mac' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.target == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.target == 'mac' && secrets.APPLE_TEAM_ID || '' }}
         run: |
           npx electron-vite build
-          if [ "${{ matrix.target }}" = mac ] && [ -z "$CSC_LINK" ]; then export CSC_IDENTITY_AUTO_DISCOVERY=false; fi
+          # no certificate → no signing attempt (and no search of the runner's keychain / certificate store)
+          if [ -z "$CSC_LINK" ]; then unset CSC_LINK CSC_KEY_PASSWORD; export CSC_IDENTITY_AUTO_DISCOVERY=false; fi
           npx electron-builder --${{ matrix.target }} --publish always

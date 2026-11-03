@@ -15,6 +15,8 @@ permissions:
   network: [www.example-u.ac.jp]
   browser_origins: [portal.example-u.ac.jp]
   personal_data: [grades]
+  personal_origins: [portal.example-u.ac.jp]
+  personal_consent: { question: grades_consent, refuse: [never] }
   computer_use: false
 sources: { official: [example-u.ac.jp] }
 skills: [campus-portal]

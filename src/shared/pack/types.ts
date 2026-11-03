@@ -13,7 +13,17 @@ export interface PackManifest {
   license: string
   publisher: { name: string; github: string }
   requires: { tomo: string; hermes: string }
-  permissions: { network: string[]; browser_origins: string[]; personal_data: string[]; computer_use: boolean }
+  permissions: {
+    network: string[]
+    browser_origins: string[]
+    personal_data: string[]
+    /** Sites whose pages hold the student's personal data: Tomo shows them only headings and controls and asks before
+     * sending any value read there. */
+    personal_origins?: string[]
+    /** The Hatch question whose answer can refuse reading personal data at all (e.g. grades_consent = never). */
+    personal_consent?: { question: string; refuse: string[] }
+    computer_use: boolean
+  }
   sources: { official: string[]; refresh?: Record<string, string> }
   skills?: string[]
   ui?: {

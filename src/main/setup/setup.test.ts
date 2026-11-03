@@ -51,6 +51,9 @@ describe('profile', () => {
     expect(existsSync(join(hermesHome, 'plugins', 'tomo-privacy', 'plugin.yaml'))).toBe(true)
     for (const text of [config, soul, user]) expect(text).not.toMatch(/Lin Mei|リン メイ|23B0001/)
     expect(JSON.parse(privatePayload(res.identifiers, pack)).fill).toEqual({ tools: ['browser_type'], origins: ['portal.example-u.ac.jp'] })
+    // personal-data site from the pack; the Hatch answer "never" to grades_consent refuses reading it
+    expect(JSON.parse(privatePayload(res.identifiers, pack, { grades_consent: 'watch' })).personal).toEqual({ origins: ['portal.example-u.ac.jp'], refused: false })
+    expect(JSON.parse(privatePayload(res.identifiers, pack, { grades_consent: 'never' })).personal).toEqual({ origins: ['portal.example-u.ac.jp'], refused: true })
   })
 
   it('moves a stray Hermes .env out', () => {

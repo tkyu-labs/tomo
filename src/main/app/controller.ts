@@ -12,12 +12,12 @@ import { HermesClient, toTurnEvent } from '../hermes/client'
 import { buildHermesEnv } from '../hermes/env'
 import { HermesProcess, type HermesRuntime } from '../hermes/process'
 import type { GatewayEvent } from '../hermes/rpc'
-import { installPack, loadPack, type LoadedPack } from '../pack/pack'
+import { installPack, loadPack, refreshBundledPack, type LoadedPack } from '../pack/pack'
 import type { TomoPaths } from '../paths'
 import { SecretStore, type Encryptor } from '../secrets/store'
 import { evacuateDotenv } from '../setup/home'
 import { listModels, setModel, setReasoning } from '../setup/model'
-import { privatePayload, writeAnswerMode, writeProfile } from '../setup/profile'
+import { privatePayload, refreshProfile, writeAnswerMode, writeProfile } from '../setup/profile'
 import { PROVIDER_KEY_ENV, providerConfig } from '../setup/providers'
 import { SettingsFile, type Settings } from './settings'
 import { StudyLog } from './study-log'
@@ -296,7 +296,10 @@ export class AppController {
     if (Object.keys(moved).length) this.secrets.update((d) => { Object.assign(d.keys, moved) })
     const secrets = this.secrets.read()
     this.masker = new Masker(secrets.identifiers)
+    const packId = this.settings.read().packId
+    if (packId) { try { refreshBundledPack(this.opts.packsSourceDir, this.opts.paths.data, packId) } catch { /* keep the installed copy */ } }
     const pack = this.installedPack()
+    if (this.settings.read().setupDone) refreshProfile(this.opts.paths.hermesHome, this.opts.pluginsDir, pack, secrets.identifiers.map((i) => i.name))
     const browsers = (await import('./browsers')).findBrowsers(process.platform, this.opts.baseEnv.HOME ?? '', this.opts.baseEnv)
     const env = buildHermesEnv({
       base: this.opts.baseEnv,
@@ -304,7 +307,7 @@ export class AppController {
       runtimeDir: this.runtimeDir(),
       cacheDir: join(this.opts.paths.data, 'cache'),
       keys: secrets.keys,
-      privatePayload: privatePayload(secrets.identifiers, pack),
+      privatePayload: privatePayload(secrets.identifiers, pack, this.settings.read().answers),
       browser: { executablePath: browsers[0]?.path, profileDir: this.opts.paths.browserProfile },
     })
     if (this.hermes && restart) await this.hermes.stopAndWait()

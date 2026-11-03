@@ -36,14 +36,15 @@ let dir: string
 let hermes: HermesProcess
 let client: HermesClient
 const approvals: Record<string, unknown>[] = []
-const approve = true
+let approve = true
 const identifiers = [{ name: 'STUDENT_NUMBER', values: ['23B0001'], kind: 'id' as const, label: 'student number' }, { name: 'FULL_NAME', values: ['Lin Mei'], kind: 'name' as const, label: 'name' }]
 
 async function start() {
   const env = buildHermesEnv({
     base: { ...process.env, HOME: join(dir, 'home') }, hermesHome: join(dir, 'hermes'), runtimeDir: devTools,
     cacheDir: join(repoRoot, '.dev', 'cache'), keys: { TOMO_CUSTOM_API_KEY: 'stub' },
-    privatePayload: JSON.stringify({ identifiers, fill: { tools: ['browser_type'], origins: ['127.0.0.1'] } }),
+    // localhost (= portal.altBase) plays the school's personal-data site
+    privatePayload: JSON.stringify({ identifiers, fill: { tools: ['browser_type'], origins: ['127.0.0.1'] }, personal: { origins: ['localhost'], refused: false } }),
     browser: { executablePath: chrome!.path, profileDir: join(dir, 'browser-profile') },
   })
   hermes = new HermesProcess({ runtime: devRuntime(repoRoot), env, onServerRequest: async (m, p) => {
@@ -118,6 +119,33 @@ describe.skipIf(!ready)('browser (Chrome, headed, Tomo profile)', () => {
     expect(out).toContain('開講科目名')
     expect(out).not.toMatch(/23B0001|Lin Mei/)
   }, 240_000)
+
+  it('on a personal-data site: snapshots carry no data, a read waits for approval, a refusal never reaches the model', async () => {
+    portal.signIn()
+    const read = "JSON.stringify([...document.querySelectorAll('td')].map((c) => c.textContent).filter((t) => /情報リテラシー/.test(t)))"
+    // navigate: only headings and controls; the grade rows are not in the result
+    const before = approvals.length
+    let results = await run([{ tool: 'browser_navigate', args: { url: `${portal.altBase}/grades` } }])
+    expect(results.join('\n')).not.toContain('情報リテラシー')
+    expect(results.join('\n')).toContain('Do not ask for permission')
+    expect(approvals.length).toBe(before)
+    // approved read (same session: each run is a new chat): the student saw the value in the preview, then the model got it
+    approve = true
+    results = await run([{ tool: 'browser_navigate', args: { url: `${portal.altBase}/grades` } }, { tool: 'browser_console', args: { expression: read } }])
+    expect(approvals.length).toBe(before + 1)
+    const shown = JSON.parse(String(approvals.at(-1)!.description).replace('[tomo-privacy]', '').trim())
+    expect(shown).toMatchObject({ kind: 'send', site: 'localhost' })
+    expect(shown.preview).toContain('情報リテラシー')
+    expect(results.join('\n')).toContain('情報リテラシー')
+    // refused read: the model never sees the value, in any request
+    approve = false
+    const sent = stub.requests.length
+    results = await run([{ tool: 'browser_navigate', args: { url: `${portal.altBase}/grades` } }, { tool: 'browser_console', args: { expression: read } }])
+    approve = true
+    expect(approvals.length).toBe(before + 2)
+    expect(results.join('\n')).toContain('did not allow')
+    for (const r of stub.requests.slice(sent)) expect(r.raw).not.toContain('情報リテラシー')
+  }, 300_000)
 
   it('keeps the profile (cookie) across an engine restart', async () => {
     await run([{ tool: 'browser_navigate', args: { url: `${portal.base}/set` } }])

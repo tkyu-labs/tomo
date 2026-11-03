@@ -51,3 +51,5 @@ html[data-platform="darwin"] .hatch-brand > * { -webkit-app-region: no-drag; }
 .setting-row .tag-v2, .setting-row .badge-pill { display: inline-flex; align-items: center; gap: 4px; }
 /* Settings: one column of sections (the two-column grid placed cards row by row and left holes on the right) */
 .settings-layout { grid-template-columns: minmax(0, 1fr); max-width: 760px; gap: 16px; }
+.send-preview { max-height: 220px; overflow: auto; margin: 0 0 12px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface-muted); font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.clarify-other { margin-top: 8px; }

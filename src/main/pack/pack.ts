@@ -24,6 +24,27 @@ export function loadPack(dir: string): LoadedPack {
  * release installs (M8) unpack a signed archive first and then call this with the unpacked folder.
  * Evals and locally built data are not copied.
  */
+/** Numeric x.y.z comparison (pre-release tags ignored): <0, 0, >0. */
+export function compareVersions(a: string, b: string): number {
+  const p = (v: string) => v.split(/[.+-]/).slice(0, 3).map((n) => Number.parseInt(n, 10) || 0)
+  const [x, y] = [p(a), p(b)]
+  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0)
+  return 0
+}
+
+/**
+ * Engine start: the pack that ships with this app replaces the installed copy when it is the same or a newer version,
+ * so app updates bring pack fixes (skills, privacy settings) to existing installs. A newer installed pack is kept.
+ */
+export function refreshBundledPack(sourceDir: string, dataDir: string, id: string): boolean {
+  const source = join(sourceDir, id)
+  const target = join(dataDir, 'packs', id)
+  if (!existsSync(join(source, 'pack.yaml'))) return false
+  if (existsSync(join(target, 'pack.yaml')) && compareVersions(loadPack(source).manifest.version, loadPack(target).manifest.version) < 0) return false
+  installPack(source, dataDir)
+  return true
+}
+
 export function installPack(sourceDir: string, dataDir: string): LoadedPack {
   const source = loadPack(sourceDir)
   const target = join(dataDir, 'packs', source.manifest.id)

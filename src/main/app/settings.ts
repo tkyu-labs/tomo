@@ -1,14 +1,19 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Answers } from '@shared/pack/types'
-import type { AnswerMode, Prefs, ProviderChoice } from '@shared/ipc'
+import type { AnswerMode, Connection, FallbackChoice, Prefs, ProviderChoice } from '@shared/ipc'
 import type { Lang } from '@shared/pack/types'
 
 /** Non-secret settings (settings.json in Tomo's folder). Identifier answers are never stored here. */
 export interface Settings {
   setupDone: boolean
   prefs: Prefs
+  /** The provider in use. */
   provider?: ProviderChoice
+  /** Every connected provider (the one in use included). Missing in settings from before 0.1.1: [provider]. */
+  connections?: Connection[]
+  /** The student's fallback pick, or 'off'. Unset: the first other connection (fallback is on by default). */
+  fallbackPick?: FallbackChoice | 'off'
   packId?: string
   /** Hatch answers without identifier questions (those live only in the secret store). */
   answers: Answers

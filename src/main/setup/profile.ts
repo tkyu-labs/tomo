@@ -17,6 +17,7 @@ export interface ProfileInput {
   pluginsSourceDir: string
   pack?: LoadedPack
   provider: ProviderSelection
+  fallback?: ProviderSelection
   answers: Answers
   answerMode?: AnswerMode
 }
@@ -33,7 +34,7 @@ export function writeProfile(input: ProfileInput): ProfileResult {
   writeHermesHome(
     input.hermesHome,
     {
-      config: renderHermesConfig({ provider: input.provider, packSkillsDir: input.pack?.skillsDir, plugins: TOMO_PLUGINS }),
+      config: renderHermesConfig({ provider: input.provider, fallback: input.fallback, packSkillsDir: input.pack?.skillsDir, plugins: TOMO_PLUGINS }),
       soul: buildSoul({ pack: input.pack, placeholderNames: identifiers.map((i) => i.name) }),
       userMd: renderUserMd(userMdEntries),
     },
@@ -42,6 +43,12 @@ export function writeProfile(input: ProfileInput): ProfileResult {
   )
   writeAnswerMode(input.hermesHome, input.answerMode ?? 'direct')
   return { identifiers, userMdEntries }
+}
+
+/** Settings → Model & usage: config.yaml for another provider in use or fallback (applies on the next engine start). */
+export function writeConfig(hermesHome: string, provider: ProviderSelection, fallback: ProviderSelection | undefined, pack?: LoadedPack): void {
+  mkdirSync(hermesHome, { recursive: true })
+  writeFileSync(join(hermesHome, 'config.yaml'), renderHermesConfig({ provider, fallback, packSkillsDir: pack?.skillsDir, plugins: TOMO_PLUGINS }), { mode: 0o600 })
 }
 
 /** Engine start: Tomo's plugins and SOUL.md as this app version ships them (see refreshTomoFiles). */

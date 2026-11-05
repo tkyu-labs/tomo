@@ -34,6 +34,18 @@ describe('Hermes config', () => {
     expect(c.toolsets).not.toContain('code_execution')
     expect(JSON.stringify(c)).not.toMatch(/api_key"/)
   })
+
+  it('writes one fallback and the custom providers both need', () => {
+    const c = buildHermesConfig({
+      provider: { id: 'custom', model: 'm1', baseUrl: 'https://own.example/v1' },
+      fallback: { id: 'gakuen', model: 'deepseek-flash', baseUrl: 'https://relay.example/v1' },
+    })
+    expect(c.fallback_model).toEqual({ provider: 'custom:gakuen', model: 'deepseek-flash' })
+    expect((c.custom_providers as { name: string }[]).map((p) => p.name)).toEqual(['endpoint', 'gakuen'])
+    expect(buildHermesConfig({ provider: { id: 'deepseek', model: 'deepseek-chat' } }).fallback_model).toBeUndefined()
+    expect(buildHermesConfig({ provider: { id: 'gakuen', model: 'x', baseUrl: 'https://r/v1' }, fallback: { id: 'deepseek', model: 'deepseek-chat' } }).fallback_model)
+      .toEqual({ provider: 'deepseek', model: 'deepseek-chat' })
+  })
 })
 
 describe('profile', () => {

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { IPC, type AppInfo } from '@shared/ipc'
+import { IPC, type AppInfo, type FallbackChoice, type ProviderChoice, type ProviderId } from '@shared/ipc'
 import { localeFromTag } from '@shared/locale'
 import { AppController } from './app/controller'
 import { Updater } from './app/updater'
@@ -192,7 +192,7 @@ handle(IPC.getState, () => controller.getState())
 handle(IPC.setPrefs, async (p: Parameters<AppController['setPrefs']>[0]) => { await controller.setPrefs(p); tray.refresh() })
 handle(IPC.listPacks, () => controller.listPacks())
 handle(IPC.selectPack, (id: string | null) => controller.selectPack(id))
-handle(IPC.connectProvider, (c: Parameters<AppController['connectProvider']>[0], key?: string) => controller.connectProvider(c, key))
+handle(IPC.connectProvider, (c: Parameters<AppController['connectProvider']>[0], key?: string, models?: string[]) => controller.connectProvider(c, key, models))
 handle(IPC.listProviderModels, (c: Parameters<AppController['listProviderModels']>[0], key: string) => controller.listProviderModels(c, key))
 handle(IPC.startChatGptLogin, () => controller.startChatGptLogin())
 handle(IPC.cancelChatGptLogin, () => controller.cancelChatGptLogin())
@@ -217,6 +217,10 @@ handle(IPC.interrupt, (id: string) => controller.interrupt(id))
 handle(IPC.respond, (id: string, result: unknown) => controller.respond(id, result))
 handle(IPC.listModels, () => controller.listModels())
 handle(IPC.setModel, (m: string) => controller.setModel(m))
+handle(IPC.addProvider, (choice: ProviderChoice, key?: string, models?: string[]) => controller.addProvider(choice, key, models))
+handle(IPC.useProvider, (id: ProviderId) => controller.useProvider(id))
+handle(IPC.removeProvider, (id: ProviderId) => controller.removeProvider(id))
+handle(IPC.setFallback, (f: FallbackChoice | null) => controller.setFallback(f))
 handle(IPC.setReasoning, (l: Parameters<AppController['setReasoning']>[0]) => controller.setReasoning(l))
 handle(IPC.userMemory, () => controller.userMemory())
 handle(IPC.restartEngine, () => controller.startEngine(true))

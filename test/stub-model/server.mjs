@@ -7,9 +7,10 @@
 //   * last user text contains "use a tool" → one tool call (todo_list if offered, else the first tool, args {})
 //   * anything else                        → text "Stub answer: <echo of the user text>"
 // Every request body is recorded so tests can assert what reached "the model" (e.g. no real identifiers).
+// failStatus (e.g. 429): every chat / responses request fails with that status (a provider that can't answer).
 import { createServer } from 'node:http'
 
-export async function startStubModel({ port = 0 } = {}) {
+export async function startStubModel({ port = 0, failStatus = 0 } = {}) {
   const requests = []
   // Optional scripted turn plan for main requests (requests that offer tools): each entry is
   // { tool, args } or { text }; consumed one per request. Title / auxiliary calls never consume it.
@@ -19,6 +20,11 @@ export async function startStubModel({ port = 0 } = {}) {
     for await (const chunk of req) body += chunk
     if (req.method === 'GET' && req.url?.endsWith('/models')) {
       return json(res, { object: 'list', data: [{ id: 'stub-model', object: 'model', owned_by: 'tomo-test', context_length: 128000 }] })
+    }
+    if (failStatus && req.method === 'POST' && (req.url?.endsWith('/responses') || req.url?.endsWith('/chat/completions'))) {
+      requests.push({ url: req.url, headers: req.headers, body: JSON.parse(body || '{}'), raw: body })
+      res.writeHead(failStatus, { 'content-type': 'application/json' })
+      return res.end(JSON.stringify({ error: { message: 'stub: this provider cannot answer now', type: failStatus === 429 ? 'rate_limit_error' : 'api_error', code: failStatus } }))
     }
     if (req.method === 'POST' && req.url?.endsWith('/responses')) {
       const payload = JSON.parse(body || '{}')

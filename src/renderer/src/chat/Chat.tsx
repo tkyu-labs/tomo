@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChatEvent, PackSummary } from '@shared/ipc'
+import type { ChatEvent, PackSummary, ProviderId } from '@shared/ipc'
 import { pick } from '@shared/pack/types'
 import { StreamUnmasker, unmask } from '@shared/privacy/masker'
 import { useCopy, useLocale } from '../i18n'
 import { Icon, isIconName } from '../ui/Icon'
 import { Markdown } from './Markdown'
 import { Card, type CardData } from './Card'
+import { providerLabel } from '../setup/ProviderSheet'
 
 export interface ToolStep { id: string; name: string; done: boolean; seconds?: number | null }
 export type Msg =
   | { role: 'user'; text: string }
-  | { role: 'assistant'; text: string; tools: ToolStep[]; streaming: boolean; cards?: CardData[] }
+  | { role: 'assistant'; text: string; tools: ToolStep[]; streaming: boolean; cards?: CardData[]; fallback?: { provider: ProviderId; model: string; from: ProviderId } }
   | { role: 'error'; text: string }
   | { role: 'stopped' }
 
@@ -58,6 +59,15 @@ export function applyEvent(s: ChatSession, e: ChatEvent, unmasker: StreamUnmaske
       if (current) msgs[lastIdx] = m
       return { ...s, messages: msgs, busy: false }
     }
+    case 'fallback': {
+      // the notice can come before or after `complete`: mark the answer of this turn
+      const info = { provider: e.provider, model: e.model, from: e.from }
+      if (current) { current.fallback = info; break }
+      const at = msgs.map((m) => m.role).lastIndexOf('assistant')
+      const target = msgs[at]
+      if (target?.role === 'assistant') msgs[at] = { ...target, fallback: info }
+      return { ...s, messages: msgs }
+    }
     case 'error':
       msgs.push({ role: 'error', text: unmask(e.message, values) })
       return { ...s, messages: msgs, busy: false }
@@ -98,6 +108,7 @@ export function Chat({ session, topicId, pack, values, onSend, onStop, modelLabe
     onSend(text, topicId)
   }
 
+  const providerName = (id: ProviderId) => (id === 'custom' ? c('Custom endpoint', '自定义接口', 'カスタムエンドポイント') : providerLabel(id))
   const toolLabel = (name: string) => {
     if (name.startsWith('browser_')) return c('Browser', '浏览器', 'ブラウザ')
     if (name === 'skill_view' || name === 'skills_list') return c('Reading a skill', '读取技能', 'スキルを確認')
@@ -159,6 +170,16 @@ export function Chat({ session, topicId, pack, values, onSend, onStop, modelLabe
                 )}
                 {m.text ? <div className="answer-body" data-testid="answer-text"><Markdown text={m.text} /></div> : m.streaming && !m.cards?.length ? <p className="working-text">{c('Thinking…', '思考中…', '考えています…')}</p> : null}
                 {m.cards?.map((card, j) => <Card key={j} card={card} values={values} />)}
+                {m.fallback && (
+                  <p className="answer-fallback" data-testid="fallback-mark">
+                    <Icon name="info" size={12} />
+                    {c(
+                      `Answered by ${providerName(m.fallback.provider)} (${m.fallback.model}) · ${providerName(m.fallback.from)} was unavailable`,
+                      `由 ${providerName(m.fallback.provider)}（${m.fallback.model}）回答 · ${providerName(m.fallback.from)} 暂不可用`,
+                      `${providerName(m.fallback.provider)}（${m.fallback.model}）が回答 · ${providerName(m.fallback.from)} は利用できませんでした`,
+                    )}
+                  </p>
+                )}
               </div>
             </div>
           ) : m.role === 'error' ? (

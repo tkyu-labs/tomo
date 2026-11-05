@@ -117,15 +117,15 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
     try {
       const res = await window.tomo.listProviderModels({ id: 'gakuen', model: '' }, gakuenKey.trim())
       if (!res.ok || !res.models) throw new Error(res.error === 'wrong-key' ? c('GakuenAI did not accept this key.', 'GakuenAI 不接受这个 Key。', 'GakuenAI がこのキーを受け付けませんでした。') : c('Cannot reach GakuenAI.', '无法连接 GakuenAI。', 'GakuenAI に接続できません。'))
-      await window.tomo.connectProvider({ id: 'gakuen', model: suggestModel(res.models), reasoning: 'low' }, gakuenKey.trim())
+      await window.tomo.connectProvider({ id: 'gakuen', model: suggestModel(res.models), reasoning: 'low' }, gakuenKey.trim(), res.models)
       setGakuenKey('')
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
-  const connect = async (choice: ProviderChoice, key?: string) => {
-    await window.tomo.connectProvider(choice, key)
+  const connect = async (choice: ProviderChoice, key?: string, models?: string[]) => {
+    await window.tomo.connectProvider(choice, key, models)
     await refresh()
     setSheetOpen(false)
   }

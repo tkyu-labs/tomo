@@ -22,6 +22,17 @@ export interface ProviderChoice {
   reasoning?: Reasoning
 }
 
+/** A connected provider (the key itself stays in the main process). `models`: the list seen when it was tested. */
+export interface Connection extends ProviderChoice {
+  models?: string[]
+}
+
+/** The provider that answers when the one in use can't (rate limit, outage, rejected key). */
+export interface FallbackChoice {
+  id: ProviderId
+  model: string
+}
+
 /** What closing the main window does: keep running in the tray / menu bar, or quit Tomo. */
 export type CloseAction = 'tray' | 'quit'
 
@@ -62,6 +73,10 @@ export interface AppState {
   provider?: ProviderChoice
   /** Masked key hint, e.g. "gk-…a1b2" (the key itself never reaches the renderer). */
   keyHint?: string
+  /** Every connected provider, the one in use included, with masked key hints. */
+  connections: (Connection & { keyHint?: string })[]
+  /** The fallback in effect (on by default with a second connection), or null. */
+  fallback: FallbackChoice | null
   /** The GakuenAI relay URL is configured in this build. */
   gakuenAvailable: boolean
   pack?: PackSummary
@@ -104,6 +119,8 @@ export type ChatEvent =
   | { kind: 'complete'; text: string; status?: string | null; error?: string | null }
   | { kind: 'error'; message: string }
   | { kind: 'title'; title: string }
+  /** This turn was answered by the fallback provider (the one in use could not answer). */
+  | { kind: 'fallback'; provider: ProviderId; model: string; from: ProviderId }
 
 /** A question from the engine that the student answers (approval, clarify). */
 export interface EngineRequest {
@@ -127,7 +144,7 @@ export interface TomoApi {
   // first run
   listPacks(): Promise<PackSummary[]>
   selectPack(id: string | null): Promise<void>
-  connectProvider(choice: ProviderChoice, key?: string): Promise<void>
+  connectProvider(choice: ProviderChoice, key?: string, models?: string[]): Promise<void>
   /** "Test": ask the provider for its models with this key (nothing is saved). */
   listProviderModels(choice: ProviderChoice, key: string): Promise<{ ok: boolean; models?: string[]; error?: 'wrong-key' | 'unreachable' | 'no-models'; detail?: string }>
   /** ChatGPT sign-in (OpenAI, device code). Events: code → approved (with models) | expired | error. */
@@ -156,6 +173,12 @@ export interface TomoApi {
 
   // settings
   listModels(): Promise<ModelList>
+  /** Settings → Model & usage: connect another provider (it becomes the one in use), switch, remove, fallback. */
+  addProvider(choice: ProviderChoice, key?: string, models?: string[]): Promise<void>
+  useProvider(id: ProviderId): Promise<void>
+  removeProvider(id: ProviderId): Promise<void>
+  /** null turns the fallback off. */
+  setFallback(choice: FallbackChoice | null): Promise<void>
   setModel(model: string): Promise<void>
   setReasoning(level: Reasoning): Promise<void>
   userMemory(): Promise<string[]>
@@ -204,6 +227,10 @@ export const IPC = {
   respond: 'tomo:respond',
   listModels: 'tomo:list-models',
   setModel: 'tomo:set-model',
+  addProvider: 'tomo:add-provider',
+  useProvider: 'tomo:use-provider',
+  removeProvider: 'tomo:remove-provider',
+  setFallback: 'tomo:set-fallback',
   setReasoning: 'tomo:set-reasoning',
   userMemory: 'tomo:user-memory',
   restartEngine: 'tomo:restart-engine',

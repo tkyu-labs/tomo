@@ -2,7 +2,8 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
-  AppState, AnswerMode, ChatEvent, EngineProgress, EngineRequest, FinishTask, HistoryMessage, PackSummary, Prefs, ProviderChoice,
+  AppState, AnswerMode, ChatEvent, Connection, EngineProgress, EngineRequest, FallbackChoice, FinishTask, HistoryMessage, PackSummary, Prefs,
+  ProviderChoice, ProviderId,
   Reasoning, SessionRow, TaskUpdate,
 } from '@shared/ipc'
 import { identifiersFrom } from '@shared/pack/hatch'
@@ -17,7 +18,7 @@ import type { TomoPaths } from '../paths'
 import { SecretStore, type Encryptor } from '../secrets/store'
 import { evacuateDotenv } from '../setup/home'
 import { listModels, setModel, setReasoning } from '../setup/model'
-import { privatePayload, refreshProfile, writeAnswerMode, writeProfile } from '../setup/profile'
+import { privatePayload, refreshProfile, writeAnswerMode, writeConfig, writeProfile } from '../setup/profile'
 import { PROVIDER_KEY_ENV, providerConfig } from '../setup/providers'
 import { SettingsFile, type Settings } from './settings'
 import { StudyLog } from './study-log'
@@ -89,7 +90,7 @@ export class AppController {
     if (opts.engine && !opts.engine.installed()) void this.prepareEngine().catch(() => undefined)
     this.study = new StudyLog(join(opts.paths.data, 'study', 'log.jsonl'), participant, () => {
       const s = this.settings.read()
-      return { mode: s.answerMode, pack: s.packId ?? null, appVersion: opts.appVersion }
+      return { mode: s.answerMode, pack: s.packId ?? null, appVersion: opts.appVersion, model: s.provider ? `${s.provider.id}/${s.provider.model}` : null }
     })
   }
 
@@ -107,13 +108,19 @@ export class AppController {
   getState(): AppState {
     const s = this.settings.read()
     const pack = this.installedPack(s)
-    const keyEnv = s.provider ? PROVIDER_KEY_ENV[s.provider.id] : null
-    const key = keyEnv ? this.secrets.read().keys[keyEnv] : undefined
+    const keys = this.secrets.read().keys
+    const hint = (id: ProviderId) => {
+      const env = PROVIDER_KEY_ENV[id]
+      const key = env ? keys[env] : undefined
+      return key ? `${key.slice(0, 3)}…${key.slice(-4)}` : undefined
+    }
     return {
       setupDone: s.setupDone,
       prefs: s.prefs,
       provider: s.provider,
-      keyHint: key ? `${key.slice(0, 3)}…${key.slice(-4)}` : undefined,
+      keyHint: s.provider ? hint(s.provider.id) : undefined,
+      connections: connectionsOf(s).map((c) => ({ ...c, keyHint: hint(c.id) })),
+      fallback: fallbackOf(s),
       gakuenAvailable: !!this.gakuenUrl(s),
       pack: pack ? { id: pack.manifest.id, manifest: pack.manifest, hatch: pack.hatch } : undefined,
       engine: { state: this.hermes?.state ?? 'stopped', version: HERMES_VERSION, installed: this.engineInstalled(), progress: this.opts.engine?.last },
@@ -172,13 +179,59 @@ export class AppController {
     this.login.cancel()
   }
 
-  connectProvider(choice: ProviderChoice, key?: string): void {
+  /** The connected provider becomes the one in use. In first-run setup it is the only connection. */
+  connectProvider(choice: ProviderChoice, key?: string, models?: string[]): void {
     const sel = { ...choice }
     if (sel.id === 'gakuen') sel.baseUrl = this.gakuenUrl()
     providerConfig(sel) // throws early on a missing base URL
     const keyEnv = PROVIDER_KEY_ENV[sel.id]
     if (keyEnv && key) this.secrets.setKey(keyEnv, key.trim())
-    this.settings.update((s) => { s.provider = sel })
+    this.settings.update((s) => {
+      const conn = { ...sel, ...(models?.length ? { models } : {}) }
+      s.connections = s.setupDone ? [...connectionsOf(s).filter((c) => c.id !== sel.id), conn] : [conn]
+      s.provider = sel
+    })
+  }
+
+  // ------------------------------------------------------------------ Settings → Model & usage
+  async addProvider(choice: ProviderChoice, key?: string, models?: string[]): Promise<void> {
+    this.connectProvider(choice, key, models)
+    await this.applyProviders()
+  }
+
+  async useProvider(id: ProviderId): Promise<void> {
+    this.settings.update((s) => {
+      const conn = connectionsOf(s).find((c) => c.id === id)
+      if (!conn) throw new Error('This provider is not connected.')
+      const { models: _models, ...choice } = conn
+      s.provider = choice
+    })
+    await this.applyProviders()
+  }
+
+  async removeProvider(id: ProviderId): Promise<void> {
+    const s = this.settings.read()
+    if (s.provider?.id === id) throw new Error('The provider in use cannot be removed; use another one first.')
+    this.settings.update((st) => {
+      st.connections = connectionsOf(st).filter((c) => c.id !== id)
+      if (st.fallbackPick && st.fallbackPick !== 'off' && st.fallbackPick.id === id) delete st.fallbackPick
+    })
+    const keyEnv = PROVIDER_KEY_ENV[id]
+    if (keyEnv) this.secrets.setKey(keyEnv, undefined)
+    await this.applyProviders()
+  }
+
+  async setFallback(choice: FallbackChoice | null): Promise<void> {
+    this.settings.update((s) => { s.fallbackPick = choice ?? 'off' })
+    await this.applyProviders()
+  }
+
+  /** Rewrites config.yaml for the provider in use and the fallback, and restarts a running engine (keys are env). */
+  private async applyProviders(): Promise<void> {
+    const s = this.settings.read()
+    if (!s.setupDone || !s.provider) return
+    writeConfig(this.opts.paths.hermesHome, s.provider, fallbackSelection(s), this.installedPack(s))
+    if (this.hermes && this.hermes.state !== 'stopped') await this.startEngine(true)
   }
 
   /** The five Finish tasks. Each reports progress; the first failure stops the run. */
@@ -239,7 +292,7 @@ export class AppController {
         if (entry) full[q.id] = entry.kind === 'name' ? { name: entry.values[0] ?? '', furigana: entry.values[1] ?? '' } : entry.values[0]
       }
     }
-    const res = writeProfile({ hermesHome: this.opts.paths.hermesHome, pluginsSourceDir: this.opts.pluginsDir, pack, provider: s.provider!, answers: full, answerMode: s.answerMode })
+    const res = writeProfile({ hermesHome: this.opts.paths.hermesHome, pluginsSourceDir: this.opts.pluginsDir, pack, provider: s.provider!, fallback: fallbackSelection(s), answers: full, answerMode: s.answerMode })
     return `${res.userMdEntries.length} entries · ${res.identifiers.map((i) => `{{${i.name}}}`).join(', ') || 'no identifiers'}`
   }
 
@@ -350,6 +403,19 @@ export class AppController {
       if (title) this.opts.emit.chat(raw.session_id, { kind: 'title', title })
       return
     }
+    if (e.type === 'status.update') {
+      // Hermes: "⚠️ Model fallback: <model> via <provider> unavailable (…); using <model> via <provider>." on the
+      // first reply from the fallback (agent/chat_completion_helpers.py). Tomo has one fallback, so this is it.
+      const text = String((e.payload as { text?: string })?.text ?? '')
+      const s = this.settings.read()
+      const fb = fallbackOf(s)
+      if (/Model fallback:/.test(text) && fb && s.provider) {
+        const ev: ChatEvent = { kind: 'fallback', provider: fb.id, model: fb.model, from: s.provider.id }
+        this.study.event(raw.session_id, ev)
+        this.opts.emit.chat(raw.session_id, ev)
+      }
+      return
+    }
     const ev = toTurnEvent(e)
     if (!ev) return
     if (ev.kind === 'complete' || ev.kind === 'error') this.runningTurns.delete(raw.session_id)
@@ -437,12 +503,18 @@ export class AppController {
     const provider = providerConfig(s.provider).model.provider as string
     const sessionId = await this.createSession()
     await setModel(this.hermes!.rpc, sessionId, model, provider)
-    this.settings.update((st) => { st.provider = { ...st.provider!, model } })
+    this.settings.update((st) => {
+      st.provider = { ...st.provider!, model }
+      st.connections = connectionsOf(st).map((c) => (c.id === st.provider!.id ? { ...c, model } : c))
+    })
   }
 
   async setReasoning(level: Reasoning): Promise<void> {
     await setReasoning(this.hermes!.rpc, level)
-    this.settings.update((st) => { st.provider = { ...st.provider!, reasoning: level } })
+    this.settings.update((st) => {
+      st.provider = { ...st.provider!, reasoning: level }
+      st.connections = connectionsOf(st).map((c) => (c.id === st.provider!.id ? { ...c, reasoning: level } : c))
+    })
   }
 
   userMemory(): string[] {
@@ -472,4 +544,27 @@ export class AppController {
     }
     for (const name of readdirSync(this.opts.paths.data)) rmSync(join(this.opts.paths.data, name), { recursive: true, force: true })
   }
+}
+
+/** Connected providers; settings from before connections existed hold only the one in use. */
+export function connectionsOf(s: Settings): Connection[] {
+  return s.connections ?? (s.provider ? [s.provider] : [])
+}
+
+/** Fallback is on by default: the student's pick, else the first other connection with its model; 'off' turns it off. */
+export function fallbackOf(s: Settings): FallbackChoice | null {
+  if (s.fallbackPick === 'off' || !s.provider) return null
+  const others = connectionsOf(s).filter((c) => c.id !== s.provider!.id)
+  const picked = s.fallbackPick ? others.find((c) => c.id === (s.fallbackPick as FallbackChoice).id) : undefined
+  if (picked) return { id: picked.id, model: (s.fallbackPick as FallbackChoice).model }
+  const first = others[0]
+  return first ? { id: first.id, model: first.model } : null
+}
+
+function fallbackSelection(s: Settings): ProviderChoice | undefined {
+  const fb = fallbackOf(s)
+  const conn = fb ? connectionsOf(s).find((c) => c.id === fb.id) : undefined
+  if (!fb || !conn) return undefined
+  const { models: _models, ...choice } = conn
+  return { ...choice, model: fb.model }
 }

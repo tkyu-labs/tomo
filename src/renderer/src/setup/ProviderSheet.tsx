@@ -25,7 +25,7 @@ type Test = { state: 'idle' } | { state: 'testing' } | { state: 'ok'; models: st
 
 export function ProviderSheet({ onClose, onConnect, gakuenAvailable }: {
   onClose: () => void
-  onConnect: (choice: ProviderChoice, key?: string) => Promise<void>
+  onConnect: (choice: ProviderChoice, key?: string, models?: string[]) => Promise<void>
   gakuenAvailable: boolean
 }) {
   const c = useCopy()
@@ -83,7 +83,7 @@ export function ProviderSheet({ onClose, onConnect, gakuenAvailable }: {
   const connect = async () => {
     setBusy(true)
     setError(null)
-    try { await onConnect(choice(), isChatGpt ? undefined : apiKey.trim()) } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
+    try { await onConnect(choice(), isChatGpt ? undefined : apiKey.trim(), test.state === 'ok' ? test.models : undefined) } catch (e) { setError(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }
 
   return (

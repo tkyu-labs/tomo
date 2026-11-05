@@ -23,9 +23,12 @@ export interface StudyRecord {
   tool_calls: string[]
   cards: string[]
   sources_shown: number
+  /** provider/model that answered (the fallback's when it took over) */
+  model: string | null
+  fallback: boolean
 }
 
-interface OpenTurn { start: number; tools: string[]; cards: string[]; sources: number; topic: string | null }
+interface OpenTurn { start: number; tools: string[]; cards: string[]; sources: number; topic: string | null; model: string | null; fallback: boolean }
 
 export class StudyLog {
   private open = new Map<string, OpenTurn>()
@@ -34,7 +37,7 @@ export class StudyLog {
   constructor(
     private readonly file: string,
     private readonly participant: string,
-    private readonly context: () => { mode: AnswerMode; pack: string | null; appVersion?: string },
+    private readonly context: () => { mode: AnswerMode; pack: string | null; appVersion?: string; model?: string | null },
   ) {}
 
   static newParticipantId(): string {
@@ -46,12 +49,17 @@ export class StudyLog {
   }
 
   turnStarted(sessionId: string, topic: string | null = null, now = Date.now()): void {
-    this.open.set(sessionId, { start: now, tools: [], cards: [], sources: 0, topic })
+    this.open.set(sessionId, { start: now, tools: [], cards: [], sources: 0, topic, model: this.context().model ?? null, fallback: false })
   }
 
   event(sessionId: string, e: ChatEvent, now = Date.now()): StudyRecord | null {
     const t = this.open.get(sessionId)
     if (!t) return null
+    if (e.kind === 'fallback') {
+      t.model = `${e.provider}/${e.model}`
+      t.fallback = true
+      return null
+    }
     if (e.kind === 'tool.start') {
       if (e.name === 'tomo_card') {
         const kind = String(e.args?.kind ?? '')
@@ -81,6 +89,8 @@ export class StudyLog {
       tool_calls: t.tools,
       cards: t.cards,
       sources_shown: t.sources,
+      model: t.model,
+      fallback: t.fallback,
     }
     mkdirSync(dirname(this.file), { recursive: true })
     appendFileSync(this.file, JSON.stringify(rec) + '\n')

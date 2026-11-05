@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import type { AppState, ModelList, Prefs, Reasoning, UpdateStatus } from '@shared/ipc'
+import type { AppState, Prefs, UpdateStatus } from '@shared/ipc'
 import { useCopy, useLocale, type Locale } from '../i18n'
-import { providerLabel } from '../setup/ProviderSheet'
+import { ModelSettings } from './ModelSettings'
 
 const SCALES = [0.8, 0.9, 1, 1.1, 1.25]
 
 export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh: () => Promise<AppState>; onPrefs: (p: Partial<Prefs>) => void }) {
   const c = useCopy()
   const { locale, setLocale } = useLocale()
-  const [models, setModels] = useState<ModelList | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<'chats' | 'everything' | null>(null)
@@ -17,14 +16,11 @@ export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh
   const [update, setUpdate] = useState<UpdateStatus | null>(null)
   useEffect(() => { void window.tomo.updateStatus().then(setUpdate); return window.tomo.onUpdateStatus(setUpdate) }, [])
 
-  useEffect(() => { if (ready) void window.tomo.listModels().then(setModels).catch(() => setModels(null)) }, [ready])
-
   const run = async (label: string, fn: () => Promise<unknown>, done?: string) => {
     setBusy(label)
     setNotice(null)
     try { await fn(); if (done) setNotice(done); await refresh() } catch (e) { setNotice(e instanceof Error ? e.message : String(e)) } finally { setBusy(null) }
   }
-  const levels: [Reasoning, string][] = [['off', c('Off', '关闭', 'オフ')], ['low', c('Low', '低', '低')], ['medium', c('Medium', '中', '中')], ['high', c('High', '高', '高')]]
 
   return (
     <main className="standalone-page product-page" data-testid="settings">
@@ -78,28 +74,7 @@ export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh
           </div>
         </section>
 
-        <section className="settings-section" data-testid="model-usage">
-          <h2>{c('Model & usage', '模型与用量', 'モデルと利用状況')}</h2>
-          <div className="setting-row">
-            <div><strong>{c('Provider', '服务商', 'プロバイダー')}</strong><span>{state.provider ? `${providerLabel(state.provider.id)}${state.keyHint ? ` · ${state.keyHint}` : ''}` : '—'}</span></div>
-          </div>
-          <div className="setting-row">
-            <div><strong>{c('Model', '模型', 'モデル')}</strong><span>{state.provider?.model ?? '—'}</span></div>
-            {models && models.models.length > 1 && (
-              <select className="setting-value setting-select" value={state.provider?.model} disabled={!!busy} onChange={(e) => void run('model', () => window.tomo.setModel(e.target.value))} aria-label={c('Model', '模型', 'モデル')}>
-                {models.models.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            )}
-          </div>
-          <div className="setting-row">
-            <div><strong>{c('Thinking level', '思考等级', '思考レベル')}</strong><span>{c('Higher is slower and costs more; Hermes uses only levels the model supports.', '等级越高越慢、费用越高；只会使用模型支持的等级。', '高いほど遅く費用もかかります。モデルが対応するレベルだけを使います。')}</span></div>
-            <div className="segmented" role="radiogroup" aria-label={c('Thinking level', '思考等级', '思考レベル')}>
-              {levels.map(([v, label]) => (
-                <button key={v} role="radio" aria-checked={(state.provider?.reasoning ?? 'low') === v} className={(state.provider?.reasoning ?? 'low') === v ? 'active' : ''} disabled={!ready || !!busy} onClick={() => void run('reasoning', () => window.tomo.setReasoning(v))}>{label}</button>
-              ))}
-            </div>
-          </div>
-        </section>
+        <ModelSettings state={state} busy={busy} run={run} />
 
         <section className="settings-section">
           <h2>{c('Privacy & data', '隐私与数据', 'プライバシーとデータ')}</h2>

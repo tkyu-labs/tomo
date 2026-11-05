@@ -3,6 +3,8 @@ import { providerConfig, REASONING_EFFORT, type ProviderSelection } from './prov
 
 export interface ConfigInput {
   provider: ProviderSelection
+  /** Answers when `provider` can't (Hermes `fallback_model`: rate limit, 5xx, rejected key, unknown model). */
+  fallback?: ProviderSelection
   /** Installed pack's skills folder (absolute). */
   packSkillsDir?: string
   plugins?: string[]
@@ -17,10 +19,14 @@ const TOOLSETS = ['web', 'browser', 'file', 'terminal', 'skills', 'memory', 'tod
  * defaults (config.py), so only what Tomo means is written. Every switch here has a reason in the decision docs.
  */
 export function buildHermesConfig(input: ConfigInput): Record<string, unknown> {
-  const { model, custom_providers } = providerConfig(input.provider)
+  const { model, custom_providers = [] } = providerConfig(input.provider)
+  const fb = input.fallback ? providerConfig(input.fallback) : undefined
+  const customs = [...custom_providers, ...(fb?.custom_providers ?? []).filter((c) => !custom_providers.some((p) => p.name === c.name))]
   const config: Record<string, unknown> = {
     model,
-    ...(custom_providers ? { custom_providers } : {}),
+    ...(customs.length ? { custom_providers: customs } : {}),
+    // one fallback, tried for the turn in which the provider in use fails; the next turn starts on the main one again
+    ...(fb ? { fallback_model: { provider: fb.model.provider, model: fb.model.default } } : {}),
     // The gateway reads platform_toolsets.cli (tui_gateway/methods_profiles.py:674 `_load_enabled_toolsets`); the
     // top-level list is kept for the CLI.
     toolsets: TOOLSETS,

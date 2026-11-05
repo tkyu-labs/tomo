@@ -6,7 +6,7 @@ import type {
   Reasoning, SessionRow, TaskUpdate,
 } from '@shared/ipc'
 import { identifiersFrom } from '@shared/pack/hatch'
-import type { Answers } from '@shared/pack/types'
+import type { Answers, Lang } from '@shared/pack/types'
 import { Masker } from '@shared/privacy/masker'
 import { HermesClient, toTurnEvent } from '../hermes/client'
 import { buildHermesEnv } from '../hermes/env'
@@ -46,6 +46,8 @@ export interface ControllerOptions {
   gakuenUrl?: string
   /** Recorded in the study log. */
   appVersion?: string
+  /** The OS language: the UI language until the student picks one. */
+  systemLocale?: () => Lang
   /** UI sinks */
   emit: {
     chat(sessionId: string, e: ChatEvent): void
@@ -75,7 +77,7 @@ export class AppController {
 
   constructor(private readonly opts: ControllerOptions) {
     mkdirSync(opts.paths.data, { recursive: true })
-    this.settings = new SettingsFile(join(opts.paths.data, 'settings.json'))
+    this.settings = new SettingsFile(join(opts.paths.data, 'settings.json'), opts.systemLocale)
     this.secrets = new SecretStore(opts.paths.secretStore, opts.encryptor)
     let participant = this.settings.read().participantId
     if (!participant) {

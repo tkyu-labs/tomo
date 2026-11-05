@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import type { Answers } from '@shared/pack/types'
 import type { AnswerMode, Prefs, ProviderChoice } from '@shared/ipc'
+import type { Lang } from '@shared/pack/types'
 
 /** Non-secret settings (settings.json in Tomo's folder). Identifier answers are never stored here. */
 export interface Settings {
@@ -28,12 +29,14 @@ export const DEFAULT_SETTINGS: Settings = {
 }
 
 export class SettingsFile {
-  constructor(private readonly file: string) {}
+  /** `defaultLocale`: the OS language, used until the student picks one (the default follows the OS). */
+  constructor(private readonly file: string, private readonly defaultLocale: () => Lang = () => 'en') {}
 
   read(): Settings {
-    if (!existsSync(this.file)) return structuredClone(DEFAULT_SETTINGS)
-    const data = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<Settings>
-    return { ...structuredClone(DEFAULT_SETTINGS), ...data, prefs: { ...DEFAULT_SETTINGS.prefs, ...data.prefs } }
+    const data = existsSync(this.file) ? (JSON.parse(readFileSync(this.file, 'utf8')) as Partial<Settings>) : {}
+    const defaults = structuredClone(DEFAULT_SETTINGS)
+    defaults.prefs.locale = this.defaultLocale()
+    return { ...defaults, ...data, prefs: { ...defaults.prefs, ...data.prefs } }
   }
 
   update(fn: (s: Settings) => void): Settings {

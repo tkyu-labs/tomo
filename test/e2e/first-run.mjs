@@ -22,7 +22,8 @@ const app = await launchApp({
   args: ['--use-mock-keychain'],
 })
 const $ = (sel) => `document.querySelector(${JSON.stringify(sel)})`
-const click = (sel) => app.evaluate(`(${$(sel)}).click(), true`)
+// waits for the element: on a slow machine the send button stays a stop button until the previous turn ends
+const click = async (sel) => { await app.waitFor(`!!${$(sel)}`, 60000); return app.evaluate(`(${$(sel)}).click(), true`) }
 const clickText = (sel, text) => app.evaluate(`[...document.querySelectorAll(${JSON.stringify(sel)})].find((e) => e.textContent.trim() === ${JSON.stringify(text)}).click(), true`)
 // set a React-controlled input
 const type = (sel, value) => app.evaluate(`(() => { const el = ${$(sel)}; const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`)

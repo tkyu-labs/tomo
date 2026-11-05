@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, shell }
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { IPC, type AppInfo } from '@shared/ipc'
+import { localeFromTag } from '@shared/locale'
 import { AppController } from './app/controller'
 import { Updater } from './app/updater'
 import { TomoTray } from './app/tray'
@@ -51,6 +52,7 @@ const uvBinary = join(isDev ? join(appRoot, 'build', 'uv') : join(process.resour
 
 const controller = new AppController({
   paths,
+  systemLocale: () => localeFromTag(app.getPreferredSystemLanguages()[0]),
   runtime: installEngine ? undefined : devRuntime(appRoot),
   engine: installEngine ? new EngineInstaller({ dataDir: paths.data, hermesHome: paths.hermesHome, uv: uvBinary, baseEnv: process.env }) : undefined,
   encryptor: {

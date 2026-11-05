@@ -3,7 +3,7 @@ import type { AppState, EngineRequest, Prefs, SessionRow } from '@shared/ipc'
 import { StreamUnmasker } from '@shared/privacy/masker'
 import { applyEvent, Chat, type ChatSession } from './chat/Chat'
 import { RequestDialog } from './chat/RequestDialog'
-import { htmlLang, LocaleContext, systemLocale, type Locale } from './i18n'
+import { htmlLang, LocaleContext, type Locale } from './i18n'
 import { Memory } from './settings/Memory'
 import { Settings } from './settings/Settings'
 import { Setup } from './setup/Setup'
@@ -30,12 +30,9 @@ export function App() {
     return s
   }, [])
 
-  // initial load: locale defaults to the OS language until the student picks one
+  // initial load: main's default is the OS language until the student picks one
   useEffect(() => {
-    void refresh().then((s) => {
-      const first = !s.setupDone && s.prefs.locale === 'en' ? systemLocale() : s.prefs.locale
-      setLocaleState(first)
-    })
+    void refresh().then((s) => setLocaleState(s.prefs.locale))
   }, [refresh])
 
   const setLocale = useCallback((l: Locale) => {

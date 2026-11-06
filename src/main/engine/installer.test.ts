@@ -1,8 +1,8 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { EngineInstaller } from './installer'
+import { ENGINE_EXTRAS, EngineInstaller } from './installer'
 import { HERMES_PIN } from './pin'
 
 const root = resolve(import.meta.dirname, '../../..')
@@ -29,5 +29,17 @@ describe('engine installer', () => {
     expect(seen.at(-1)).toBe('error')
     expect(inst.installed()).toBe(false)
     expect(existsSync(join(data, 'engine', 'hermes-src'))).toBe(false)
+  })
+
+  it('counts an install without the extras this Tomo needs as not installed (it is re-synced)', () => {
+    const data = tmp()
+    const inst = new EngineInstaller({ dataDir: data, hermesHome: join(data, 'hermes'), uv: 'uv', baseEnv: {}, platform: 'darwin' })
+    mkdirSync(join(data, 'engine', 'venv', 'bin'), { recursive: true })
+    writeFileSync(join(data, 'engine', 'venv', 'bin', 'python'), '')
+    const mark = (extras?: string[]) => writeFileSync(join(data, 'engine', 'installed.json'), JSON.stringify({ commit: HERMES_PIN.commit, ...(extras ? { extras } : {}) }))
+    mark()
+    expect(inst.installed()).toBe(false)
+    mark(ENGINE_EXTRAS)
+    expect(inst.installed()).toBe(true)
   })
 })

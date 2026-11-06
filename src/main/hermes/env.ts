@@ -23,6 +23,8 @@ export interface HermesEnvInput {
   /** Serialized identifier values for the privacy plugin, which reads and removes it on load. */
   privatePayload?: string
   browser?: { executablePath?: string; profileDir?: string }
+  /** Folders pack skills use from the terminal: downloads (Tomo's scratch folder) and documents the student kept. */
+  folders?: { downloads?: string; documents?: string }
 }
 
 /** The complete environment for the gateway process. */
@@ -58,6 +60,8 @@ export function buildHermesEnv(input: HermesEnvInput): Record<string, string> {
     if (!/^[A-Z_][A-Z0-9_]*$/.test(name)) throw new Error(`invalid key variable name: ${name}`)
     env[name] = value
   }
+  if (input.folders?.downloads) env.TOMO_DOWNLOADS = input.folders.downloads
+  if (input.folders?.documents) env.TOMO_DOCUMENTS = input.folders.documents
   if (input.privatePayload !== undefined) env.TOMO_PRIVATE = input.privatePayload
   return env
 }

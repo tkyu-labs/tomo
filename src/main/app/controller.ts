@@ -47,6 +47,8 @@ export interface ControllerOptions {
   gakuenUrl?: string
   /** Recorded in the study log. */
   appVersion?: string
+  /** "Documents/Tomo": files the student asked Tomo to keep (school PDFs, …). Default `<data>/documents`. */
+  documentsDir?: string
   /** The OS language: the UI language until the student picks one. */
   systemLocale?: () => Lang
   /** UI sinks */
@@ -364,6 +366,7 @@ export class AppController {
       keys: secrets.keys,
       privatePayload: privatePayload(secrets.identifiers, pack, this.settings.read().answers),
       browser: { executablePath: browsers[0]?.path, profileDir: this.opts.paths.browserProfile },
+      folders: { downloads: join(this.opts.paths.data, 'downloads'), documents: this.opts.documentsDir ?? join(this.opts.paths.data, 'documents') },
     })
     if (this.hermes && restart) await this.hermes.stopAndWait()
     if (!this.hermes || restart) {

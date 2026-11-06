@@ -3,7 +3,7 @@
 //   <data>/engine/hermes-src   Hermes source at the pinned commit
 //   <data>/engine/venv         Python environment with Hermes' locked dependencies (uv sync --frozen)
 //   <data>/engine/python       the Python that uv downloads (python-build-standalone)
-//   <data>/engine/installed.json  marker: which commit is installed
+//   <data>/engine/installed.json  marker: which commit and optional extras are installed
 // Then the browser runtime (agent-browser) and, on Windows, Git for Windows (for the terminal tool) come from Hermes'
 // own package manager. An app update reuses the engine unless the pinned commit changes.
 import { spawn } from 'node:child_process'
@@ -30,6 +30,9 @@ export interface EngineInstallerOptions {
   fetchFn?: typeof fetch
 }
 
+/** Optional Hermes extras Tomo needs (pyproject.toml, locked in uv.lock): ddgs = DuckDuckGo web search, no key. */
+export const ENGINE_EXTRAS = ['ddgs']
+
 const TAR = (platform: NodeJS.Platform) => (platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar')
 
 export class EngineInstaller {
@@ -50,14 +53,14 @@ export class EngineInstaller {
     return { python, root: join(this.dir, 'hermes-src') }
   }
 
-  /** The pinned engine is installed and complete. */
+  private marker(): { commit?: string; extras?: string[] } | null {
+    try { return JSON.parse(readFileSync(join(this.dir, 'installed.json'), 'utf8')) } catch { return null }
+  }
+
+  /** The pinned engine is installed and complete, with the extras this Tomo needs. */
   installed(): boolean {
-    try {
-      const m = JSON.parse(readFileSync(join(this.dir, 'installed.json'), 'utf8')) as { commit?: string }
-      return m.commit === this.pin.commit && existsSync(this.runtime().python)
-    } catch {
-      return false
-    }
+    const m = this.marker()
+    return !!m && m.commit === this.pin.commit && sameSet(m.extras ?? [], ENGINE_EXTRAS) && existsSync(this.runtime().python)
   }
 
   /** Starts (or joins) the preparation; resolves with the runtime. Safe to call many times. */
@@ -84,8 +87,35 @@ export class EngineInstaller {
 
   private async install(report: (p: EngineProgress) => void): Promise<HermesRuntime> {
     mkdirSync(this.dir, { recursive: true })
+    // same commit, other extras (an app update that needs another optional package): only the dependency step
+    const m = this.marker()
+    const src = join(this.dir, 'hermes-src')
+    const keepSource = m?.commit === this.pin.commit && existsSync(join(src, 'pyproject.toml'))
     rmSync(join(this.dir, 'installed.json'), { force: true })
+    if (!keepSource) await this.fetchSource(report, src)
 
+    // 3. Python + locked dependencies (35–90 %): uv sync --frozen checks every package hash in uv.lock
+    report({ stage: 'install', percent: 35 })
+    let lines = 0
+    await run(this.opts.uv, ['sync', '--frozen', '--no-dev', ...ENGINE_EXTRAS.flatMap((x) => ['--extra', x]), '--python', this.pin.python], { cwd: src, env: this.env() }, () => {
+      lines++
+      report({ stage: 'install', percent: Math.min(88, 35 + lines) })
+    })
+    if (!existsSync(this.runtime().python)) throw new Error('Hermes was installed but its Python is missing')
+
+    // 4. browser runtime and, on Windows, Git Bash for the terminal tool (90–100 %)
+    report({ stage: 'browser', percent: 90 })
+    const pm = (pkg: string) => run(this.runtime().python, ['-m', 'hermes_cli.main', 'pm', 'install', pkg], { cwd: src, env: this.env() }).catch(() => undefined)
+    await pm('agent-browser')
+    if (this.platform === 'win32') await pm('git')
+
+    writeFileSync(join(this.dir, 'installed.json'), JSON.stringify({ commit: this.pin.commit, tag: this.pin.tag, extras: ENGINE_EXTRAS, installedAt: new Date().toISOString() }))
+    report({ stage: 'done', percent: 100 })
+    return this.runtime()
+  }
+
+  /** Steps 1–2: download, verify and unpack the pinned source. */
+  private async fetchSource(report: (p: EngineProgress) => void, src: string): Promise<void> {
     // 1. download and verify the source archive (0–30 %)
     report({ stage: 'download', percent: 0 })
     const archive = join(this.dir, 'hermes-src.tar.gz')
@@ -115,32 +145,14 @@ export class EngineInstaller {
     rmSync(tmp, { recursive: true, force: true })
     mkdirSync(tmp)
     await run(TAR(this.platform), ['-xzf', archive, '-C', tmp])
-    const src = join(this.dir, 'hermes-src')
     rmSync(src, { recursive: true, force: true })
     renameSync(join(tmp, `hermes-agent-${this.pin.commit}`), src)
     rmSync(tmp, { recursive: true, force: true })
     rmSync(archive, { force: true })
-
-    // 3. Python + locked dependencies (35–90 %): uv sync --frozen checks every package hash in uv.lock
-    report({ stage: 'install', percent: 35 })
-    let lines = 0
-    await run(this.opts.uv, ['sync', '--frozen', '--no-dev', '--python', this.pin.python], { cwd: src, env: this.env() }, () => {
-      lines++
-      report({ stage: 'install', percent: Math.min(88, 35 + lines) })
-    })
-    if (!existsSync(this.runtime().python)) throw new Error('Hermes was installed but its Python is missing')
-
-    // 4. browser runtime and, on Windows, Git Bash for the terminal tool (90–100 %)
-    report({ stage: 'browser', percent: 90 })
-    const pm = (pkg: string) => run(this.runtime().python, ['-m', 'hermes_cli.main', 'pm', 'install', pkg], { cwd: src, env: this.env() }).catch(() => undefined)
-    await pm('agent-browser')
-    if (this.platform === 'win32') await pm('git')
-
-    writeFileSync(join(this.dir, 'installed.json'), JSON.stringify({ commit: this.pin.commit, tag: this.pin.tag, installedAt: new Date().toISOString() }))
-    report({ stage: 'done', percent: 100 })
-    return this.runtime()
   }
 }
+
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x))
 
 function run(cmd: string, args: string[], opts: { cwd?: string; env?: Record<string, string> } = {}, onLine?: () => void): Promise<void> {
   return new Promise((resolve, reject) => {

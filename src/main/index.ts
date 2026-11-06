@@ -53,6 +53,7 @@ const uvBinary = join(isDev ? join(appRoot, 'build', 'uv') : join(process.resour
 const controller = new AppController({
   paths,
   systemLocale: () => localeFromTag(app.getPreferredSystemLanguages()[0]),
+  documentsDir: join(app.getPath('documents'), 'Tomo'),
   runtime: installEngine ? undefined : devRuntime(appRoot),
   engine: installEngine ? new EngineInstaller({ dataDir: paths.data, hermesHome: paths.hermesHome, uv: uvBinary, baseEnv: process.env }) : undefined,
   encryptor: {

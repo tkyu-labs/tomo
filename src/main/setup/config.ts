@@ -44,6 +44,8 @@ export function buildHermesConfig(input: ConfigInput): Record<string, unknown> {
     },
     skills: { external_dirs: input.packSkillsDir ? [input.packSkillsDir] : [] },
     plugins: { enabled: input.plugins ?? ['tomo-privacy', 'tomo'] },
+    // read_file reads text PDFs locally; never send a scanned page to a hosted OCR service
+    file_tools: { hosted_ocr: false },
     browser: {
       backend: 'off', // step-wise browser_* tools; Browser Use mode (browser_exec) bypasses argument masking
       headed: true, // the student sees the window and signs in themselves

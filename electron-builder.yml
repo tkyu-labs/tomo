@@ -50,3 +50,4 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: false
+  include: build-resources/installer.nsh   # uninstall: ask once whether to delete the student's data (default: keep)

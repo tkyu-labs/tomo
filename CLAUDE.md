@@ -82,6 +82,19 @@ npm run test:e2e                 # builds, then drives the real app (smoke, wind
 - Windows and macOS both matter: paths via `node:path`, no shell-specific commands in the app, test on both when
   you touch processes, the browser, the tray or files.
 
+## Version numbers
+
+Tomo, every pack (`pack.yaml` → `version`) and every skill (`SKILL.md` → `version`) use **MAJOR.MINOR.PATCH**, each
+counted on its own:
+
+- **MAJOR** is raised only by a maintainer. A coding agent never raises it.
+- **MINOR** goes up when a feature is added or removed (then PATCH starts again at 0).
+- **PATCH** goes up for fixes and improvements of existing features.
+- **No carry-over**: the numbers are not decimals. After `0.1.9` comes `0.1.10`, then `0.1.11`, …; only a new or
+  removed feature makes it `0.2.0`. If you cannot tell whether a change is a feature or a fix, ask the maintainer.
+- Compare with the last released version: several changes before one release get one bump (the largest kind among
+  them).
+
 ## Commits and pull requests
 
 - Conventional Commits: `feat: …`, `fix: …`, `docs: …`, `test: …`, `ci: …`, `chore: …`; one commit per finished,

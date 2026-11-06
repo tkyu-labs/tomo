@@ -1,5 +1,5 @@
 // Copies the school packs that ship with the app into build/packs (macOS and Windows). Source: TOMO_PACKS_SRC (a
-// tomo-packs `packs` folder, e.g. from scripts/fetch-pack-release.mjs) or the local tomo-packs checkout.
+// tomo-packs `packs` folder) or the local tomo-packs checkout.
 import { cpSync, existsSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 

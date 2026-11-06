@@ -21,13 +21,9 @@ npm test && npm run typecheck && npm run lint
 npm 12 and later skip dependency install scripts by default, so Electron's binary is not downloaded. Run
 `node node_modules/electron/install.js` once after `npm install` (or `npm ci`).
 
-The packs that ship with the app come from `TOMO_PACKS_SRC` (a `packs` folder) or the local tomo-packs checkout.
-For a release, use a signed pack release, verified before it is bundled:
-
-```sh
-node scripts/fetch-pack-release.mjs shonan-it 0.1.0   # checks the Sigstore bundle against the tomo-packs release workflow
-export TOMO_PACKS_SRC=build/pack-releases/packs
-```
+The packs that ship with the app come from `TOMO_PACKS_SRC` (a `packs` folder) or the local tomo-packs checkout
+(the release workflow checks out tomo-packs `main`). Installed apps update packs from tomo-packs `main` themselves
+(`src/main/pack/remote.ts`: catalog `lock_sha256`, every file checked against `pack.lock`).
 
 ## Tester builds with GakuenAI
 

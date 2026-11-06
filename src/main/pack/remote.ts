@@ -12,9 +12,10 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { promisify } from 'node:util'
 import { compareVersions, loadPack, type LoadedPack } from './pack'
-import { TAR } from './release'
 
 const run = promisify(execFile)
+// Windows: always the system bsdtar (a Git Bash GNU tar on PATH would read `C:` as a remote host)
+export const TAR = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
 export const PACKS_REPO = 'tkyu-labs/tomo-packs'
 
 /** Python's json.dumps(obj, sort_keys=True) (default separators, ensure_ascii), as tools/validate.py hashes it. */

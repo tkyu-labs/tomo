@@ -12,6 +12,16 @@ const root = resolve(import.meta.dirname, '../..')
 const REAL = !!process.env.TOMO_E2E_REAL && !!process.env.OPENAI_API_KEY
 // TOMO_E2E_DATA: keep the finished data folder (other checks start from a set-up Tomo); TOMO_E2E_STUB_PORT: fixed stub port
 const data = process.env.TOMO_E2E_DATA || mkdtempSync(join(tmpdir(), 'tomo-e2e-'))
+const INSPECT = 9367
+/** Evaluates in the main process (Node inspector, test only), e.g. to push an update status to the window. */
+async function mainEval(expression) {
+  const [t] = await (await fetch(`http://127.0.0.1:${INSPECT}/json/list`)).json()
+  const ws = new WebSocket(t.webSocketDebuggerUrl)
+  await new Promise((r) => ws.addEventListener('open', r))
+  const res = await new Promise((r) => { ws.addEventListener('message', (m) => { const d = JSON.parse(m.data); if (d.id === 1) r(d) }); ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression, returnByValue: true, includeCommandLineAPI: true } })) })
+  ws.close()
+  return res.result?.result?.value
+}
 const stub = await startStubModel({ port: Number(process.env.TOMO_E2E_STUB_PORT) || 0 })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // TOMO_E2E_APP: run an installed app binary instead (with its bundled packs); TOMO_E2E_PACK: pack to pick.
@@ -19,7 +29,7 @@ const PACK = process.env.TOMO_E2E_PACK ?? 'example-u'
 const app = await launchApp({
   executable: process.env.TOMO_E2E_APP,
   env: { TOMO_DATA_DIR: data, ...(process.env.TOMO_E2E_APP ? {} : { TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }) },
-  args: ['--use-mock-keychain'],
+  args: ['--use-mock-keychain', `--inspect=${INSPECT}`],
 })
 const $ = (sel) => `document.querySelector(${JSON.stringify(sel)})`
 // waits for the element: on a slow machine the send button stays a stop button until the previous turn ends
@@ -173,9 +183,17 @@ try {
   report.memory = await app.evaluate(`[...document.querySelectorAll('[data-testid=memory-entry]')].map((e) => e.textContent)`)
   // the "masked" pill on a memory entry: lock and label side by side with a gap (a settings-row rule once made it a block)
   report.maskedTag = await app.evaluate(`(() => { const t = document.querySelector('[data-testid=masked-tag]'); if (!t) return null; const i = t.querySelector('svg').getBoundingClientRect(); const r = document.createRange(); r.selectNodeContents(t.lastChild); const x = r.getBoundingClientRect(); return { display: getComputedStyle(t).display, gap: Math.round((x.left - i.right) * 10) / 10, centred: Math.abs((i.top + i.height / 2) - (x.top + x.height / 2)) <= 2 } })()`)
+  // an app update that is ready shows one banner with "Restart now"; dismissing it hides it
+  await app.evaluate(`window.tomo.setPrefs({ locale: 'en' }).then(() => location.reload())`); await sleep(1500)
+  await app.waitFor($('[data-testid=sidebar]'))
+  await mainEval(`(() => { require('electron').BrowserWindow.getAllWindows()[0].webContents.send('tomo:update-event', { state: 'ready', current: '0.1.0', available: '9.9.9' }); return true })()`)
+  await sleep(400)
+  report.banner = await app.evaluate(`(() => { const b = document.querySelector('[data-testid=app-banner]'); return b ? { kind: b.dataset.kind, text: b.innerText.trim(), action: b.querySelector('[data-testid=banner-action]')?.textContent } : null })()`)
+  await click('[data-testid=banner-dismiss]'); await sleep(200)
+  report.bannerDismissed = await app.evaluate(`!document.querySelector('[data-testid=app-banner]')`)
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && report.settingsColumns === 1 && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

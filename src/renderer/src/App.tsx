@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AppState, EngineRequest, Prefs, SessionRow } from '@shared/ipc'
+import type { AppState, EngineRequest, Prefs, SessionRow, UpdateStatus } from '@shared/ipc'
 import { StreamUnmasker } from '@shared/privacy/masker'
 import { applyEvent, Chat, type ChatSession } from './chat/Chat'
 import { RequestDialog } from './chat/RequestDialog'
@@ -8,6 +8,7 @@ import { Memory } from './settings/Memory'
 import { Settings } from './settings/Settings'
 import { Setup } from './setup/Setup'
 import { Sidebar, type View } from './Sidebar'
+import { Banner, bannerKey, type BannerNotice } from './ui/Banner'
 import { ScaleRoot } from './ui/scale'
 
 const APP_NAME = 'Tomo（伴）'
@@ -18,6 +19,9 @@ export function App() {
   const [view, setView] = useState<View>({ kind: 'chat' })
   const [sessions, setSessions] = useState<Record<string, ChatSession>>({})
   const [rows, setRows] = useState<SessionRow[]>([])
+  const [update, setUpdate] = useState<UpdateStatus | null>(null)
+  const [dismissed, setDismissed] = useState<string | null>(null)
+  useEffect(() => { void window.tomo.updateStatus().then(setUpdate); return window.tomo.onUpdateStatus(setUpdate) }, [])
   const [values, setValues] = useState<Record<string, string>>({})
   const [requests, setRequests] = useState<EngineRequest[]>([])
   const unmaskers = useRef(new Map<string, StreamUnmasker>())
@@ -117,6 +121,12 @@ export function App() {
 
   const titles = useMemo(() => Object.fromEntries(Object.values(sessions).filter((s) => s.title).map((s) => [s.id, s.title])), [sessions])
 
+  // one banner at a time: a ready app update first (pack notices follow)
+  const notice: BannerNotice | null = update?.state === 'ready' && update.available ? { kind: 'app-ready', version: update.available } : null
+  const onBanner = () => {
+    if (notice?.kind === 'app-ready') void window.tomo.installUpdate()
+  }
+
   if (!state) return null
   return (
     <LocaleContext.Provider value={{ locale, setLocale }}>
@@ -126,6 +136,8 @@ export function App() {
         ) : (
           <div className="app-shell page-mode">
             <Sidebar view={view} onView={setView} pack={state.pack} sessions={rows} titles={titles} />
+            <div className="main-column">
+            {notice && bannerKey(notice) !== dismissed && <Banner notice={notice} onAction={onBanner} onDismiss={() => setDismissed(bannerKey(notice))} />}
             {view.kind === 'settings' ? (
               <Settings state={state} refresh={refresh} onPrefs={(p) => void setPrefs(p)} />
             ) : view.kind === 'memory' ? (
@@ -143,6 +155,7 @@ export function App() {
                 onOpenModel={() => setView({ kind: 'settings' })}
               />
             )}
+            </div>
           </div>
         )}
         {requests[0] && <RequestDialog request={requests[0]} values={values} onDone={() => setRequests((q) => q.slice(1))} />}

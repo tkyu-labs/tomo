@@ -17,6 +17,7 @@ import { installPack, loadPack, refreshBundledPack, type LoadedPack } from '../p
 import { PackUpdater, type PackUpdaterOptions } from '../pack/updater'
 import type { TomoPaths } from '../paths'
 import { SecretStore, type Encryptor } from '../secrets/store'
+import type { PortableKey } from '../secrets/portable'
 import { evacuateDotenv } from '../setup/home'
 import { listModels, setModel, setReasoning } from '../setup/model'
 import { privatePayload, refreshProfile, writeAnswerMode, writeConfig, writeProfile } from '../setup/profile'
@@ -62,6 +63,8 @@ export interface ControllerOptions {
     engineProgress?(p: EngineProgress): void
     packUpdate?(s: PackUpdateState): void
   }
+  /** Windows portable build: the password-based key that is also `encryptor`. */
+  portableKey?: PortableKey
   /** Test seams for the pack updater (default: tomo-packs releases on GitHub). */
   packUpdates?: Pick<PackUpdaterOptions, 'latest' | 'stage'>
 }
@@ -125,7 +128,9 @@ export class AppController {
   getState(): AppState {
     const s = this.settings.read()
     const pack = this.installedPack(s)
-    const keys = this.secrets.read().keys
+    // portable and still locked: the store cannot be read yet (no key hints until the student unlocks)
+    const locked = !!this.opts.portableKey && !this.opts.portableKey.unlocked()
+    const keys = locked ? {} : this.secrets.read().keys
     const hint = (id: ProviderId) => {
       const env = PROVIDER_KEY_ENV[id]
       const key = env ? keys[env] : undefined
@@ -143,6 +148,7 @@ export class AppController {
       engine: { state: this.hermes?.state ?? 'stopped', version: HERMES_VERSION, installed: this.engineInstalled(), progress: this.opts.engine?.last },
       answerMode: s.answerMode,
       packUpdate: { ...this.packUpdater.state, mode: s.packUpdateMode ?? 'auto' },
+      portable: this.opts.portableKey ? { enabled: true, hasPassword: this.opts.portableKey.hasPassword(), unlocked: this.opts.portableKey.unlocked() } : { enabled: false, hasPassword: false, unlocked: true },
     }
   }
 
@@ -242,6 +248,36 @@ export class AppController {
   async setFallback(choice: FallbackChoice | null): Promise<void> {
     this.settings.update((s) => { s.fallbackPick = choice ?? 'off' })
     await this.applyProviders()
+  }
+
+  // ------------------------------------------------------------------ Windows portable (password instead of DPAPI)
+  private get portableKey(): PortableKey {
+    if (!this.opts.portableKey) throw new Error('Not the portable build.')
+    return this.opts.portableKey
+  }
+
+  /** First run: the password that protects the secret store from now on. */
+  setPortablePassword(password: string): void {
+    this.portableKey.create(password)
+  }
+
+  /** Every start: unlock, then start the engine (it needs the keys). */
+  async unlockPortable(password: string): Promise<boolean> {
+    if (!this.portableKey.unlock(password)) return false
+    if (this.settings.read().setupDone) await this.startEngine().catch(() => undefined)
+    return true
+  }
+
+  changePortablePassword(current: string, next: string): boolean {
+    return this.portableKey.change(current, next, () => JSON.stringify(this.secrets.read()), (plain) => this.secrets.write(JSON.parse(plain)))
+  }
+
+  /** Forgotten password: chats and memory stay; keys and identifiers go, and the first-run setup asks for them again. */
+  async resetPortable(): Promise<void> {
+    await this.stopEngine()
+    rmSync(this.opts.paths.secretStore, { force: true })
+    this.portableKey.reset()
+    this.settings.update((s) => { s.setupDone = false; s.provider = undefined; s.connections = undefined })
   }
 
   // ------------------------------------------------------------------ school pack updates
@@ -578,6 +614,7 @@ export class AppController {
       return
     }
     for (const name of readdirSync(this.opts.paths.data)) rmSync(join(this.opts.paths.data, name), { recursive: true, force: true })
+    this.opts.portableKey?.reset()
   }
 }
 

@@ -5,6 +5,7 @@ import { pick, type Answers } from '@shared/pack/types'
 import { useCopy, useLocale, type Locale } from '../i18n'
 import { Icon, type IconName } from '../ui/Icon'
 import { HatchPage, HatchSummary } from './HatchFlow'
+import { passwordOk, PortablePasswordSetup } from './Portable'
 import { ProviderSheet, providerLabel, suggestModel } from './ProviderSheet'
 
 function EnginePill({ state, refresh }: { state: AppState; refresh: () => Promise<AppState> }) {
@@ -93,9 +94,17 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
     c('Finish', '完成设置', '仕上げ'),
   ]
 
+  // portable build: the password is set in the privacy step, before any key is stored
+  const needsPassword = state.portable.enabled && !state.portable.hasPassword
+  const [pw, setPw] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
   const next = async () => {
     setError(null)
     try {
+      if (step === STEP.privacy && needsPassword) {
+        await window.tomo.setPortablePassword(pw)
+        await refresh()
+      }
       if (step === STEP.pack) {
         await window.tomo.selectPack(packId)
         if (!packId) { setStep(STEP.browser); return }
@@ -132,7 +141,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
 
   const finishDone = finishResult?.ok === true
   const canContinue =
-    (step !== STEP.ai || !!state.provider) && (step !== STEP.finish || finishDone) && !(step === STEP.browser && chrome.stage)
+    (step !== STEP.ai || !!state.provider) && (step !== STEP.finish || finishDone) && !(step === STEP.privacy && needsPassword && !passwordOk(pw, pwConfirm)) && !(step === STEP.browser && chrome.stage)
 
   return (
     <main className="standalone-page onboarding-page">
@@ -187,6 +196,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
                   </div>
                 ))}
               </div>
+              {needsPassword && <PortablePasswordSetup value={pw} confirm={pwConfirm} onChange={setPw} onConfirm={setPwConfirm} />}
             </>
           )}
 

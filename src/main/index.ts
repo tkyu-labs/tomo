@@ -11,12 +11,15 @@ import { findBrowsers } from './app/browsers'
 import { installChrome } from './app/chrome-install'
 import { devRuntime } from './hermes/runtime'
 import { EngineInstaller } from './engine/installer'
-import { tomoDataDir, tomoPaths } from './paths'
+import { portableRoot, tomoDataDir, tomoPaths } from './paths'
+import { PortableKey } from './secrets/portable'
 
 const isDev = !app.isPackaged
 const appRoot = resolve(app.getAppPath())
+// Windows portable build: everything in <root>\Data, secrets protected by the student's password (src/main/paths.ts)
+const portable = process.platform === 'win32' || process.env.TOMO_PORTABLE_ROOT ? portableRoot(process.execPath, process.env) : undefined
 // TOMO_DATA_DIR: tests and e2e checks run against a throw-away folder.
-const dataDir = process.env.TOMO_DATA_DIR || tomoDataDir({
+const dataDir = process.env.TOMO_DATA_DIR || (portable ? join(portable, 'Data') : undefined) || tomoDataDir({
   platform: process.platform,
   env: process.env,
   home: app.getPath('home'),
@@ -43,7 +46,8 @@ let win: BrowserWindow | null = null
 /** Set once Tomo really quits (tray Quit, ⌘Q, update install); until then closing the window only hides it. */
 let quitting = false
 const send = (channel: string, ...args: unknown[]) => win?.webContents.send(channel, ...args)
-const updater = new Updater((s) => send(IPC.updateEvent, s), () => { quitting = true })
+const updater = new Updater((s) => send(IPC.updateEvent, s), () => { quitting = true }, !!portable)
+const portableKey = portable ? new PortableKey(join(paths.data, 'secret-key.json')) : undefined
 
 // Development runs the engine from .dev/ (scripts/dev-hermes.sh). Installed apps — and development with
 // TOMO_ENGINE=install — download Hermes from GitHub into Tomo's folder on first start, using the bundled uv.
@@ -53,10 +57,12 @@ const uvBinary = join(isDev ? join(appRoot, 'build', 'uv') : join(process.resour
 const controller = new AppController({
   paths,
   systemLocale: () => localeFromTag(app.getPreferredSystemLanguages()[0]),
-  documentsDir: join(app.getPath('documents'), 'Tomo'),
+  // portable: kept documents travel with the folder
+  documentsDir: portable ? join(portable, 'Documents') : join(app.getPath('documents'), 'Tomo'),
+  portableKey,
   runtime: installEngine ? undefined : devRuntime(appRoot),
   engine: installEngine ? new EngineInstaller({ dataDir: paths.data, hermesHome: paths.hermesHome, uv: uvBinary, baseEnv: process.env }) : undefined,
-  encryptor: {
+  encryptor: portableKey ?? {
     isAvailable: () => safeStorage.isEncryptionAvailable(),
     encrypt: (plain) => safeStorage.encryptString(plain),
     decrypt: (data) => safeStorage.decryptString(data),
@@ -223,6 +229,10 @@ handle(IPC.addProvider, (choice: ProviderChoice, key?: string, models?: string[]
 handle(IPC.useProvider, (id: ProviderId) => controller.useProvider(id))
 handle(IPC.removeProvider, (id: ProviderId) => controller.removeProvider(id))
 handle(IPC.setFallback, (f: FallbackChoice | null) => controller.setFallback(f))
+handle(IPC.setPortablePassword, (pw: string) => controller.setPortablePassword(pw))
+handle(IPC.unlockPortable, (pw: string) => controller.unlockPortable(pw))
+handle(IPC.changePortablePassword, (cur: string, next: string) => controller.changePortablePassword(cur, next))
+handle(IPC.resetPortable, () => controller.resetPortable())
 handle(IPC.checkPackUpdate, () => controller.packUpdater.check())
 handle(IPC.installPackUpdate, () => controller.packUpdater.install())
 handle(IPC.setPackUpdateMode, (m: PackUpdateMode) => controller.setPackUpdateMode(m))
@@ -272,7 +282,8 @@ app.whenReady().then(async () => {
   if (isDev && process.platform === 'darwin') app.dock?.setIcon(join(appIconDir, 'icon.png')) // packaged builds use icon.icns
   win = createWindow()
   tray.create()
-  if (controller.getState().setupDone) await controller.startEngine().catch(() => undefined)
+  // portable: the engine needs the keys, so it starts after the student unlocks (IPC.unlockPortable)
+  if (controller.getState().setupDone && (!portableKey || portableKey.unlocked())) await controller.startEngine().catch(() => undefined)
   // macOS: clicking the Dock icon brings the hidden window back
   app.on('activate', () => showWindow())
 })

@@ -3,6 +3,7 @@ import type { AppState, Prefs, UpdateStatus } from '@shared/ipc'
 import { useCopy, useLocale, type Locale } from '../i18n'
 import { ModelSettings } from './ModelSettings'
 import { PackSettings } from './PackSettings'
+import { ChangePasswordSheet } from '../setup/Portable'
 
 const SCALES = [0.8, 0.9, 1, 1.1, 1.25]
 
@@ -12,6 +13,7 @@ export function Settings({ state, refresh, onPrefs, packReview, onPackReview }: 
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<'chats' | 'everything' | null>(null)
+  const [changePassword, setChangePassword] = useState(false)
   const ready = state.engine.state === 'ready'
   const mac = document.documentElement.dataset.platform === 'darwin'
   const [update, setUpdate] = useState<UpdateStatus | null>(null)
@@ -85,6 +87,12 @@ export function Settings({ state, refresh, onPrefs, packReview, onPackReview }: 
             <div><strong>{c('Export your data', '导出数据', 'データを書き出す')}</strong><span>{c('Settings, what Tomo remembers and your chat list. Keys and identifiers are not included.', '设置、Tomo 记住的内容和对话列表。不含 Key 和身份信息。', '設定、Tomo の記憶、チャット一覧。キーと識別子は含みません。')}</span></div>
             <button className="secondary" disabled={!!busy} onClick={() => void run('export', async () => { const p = await window.tomo.exportData(); if (p) setNotice(c(`Saved to ${p}`, `已保存到 ${p}`, `${p} に保存しました`)) })}>{c('Export…', '导出…', '書き出す…')}</button>
           </div>
+          {state.portable.enabled && (
+            <div className="setting-row" data-testid="portable-password">
+              <div><strong>{c('Password', '密码', 'パスワード')}</strong><span>{c("Tomo Portable encrypts your keys and identifiers with this password instead of Windows' own protection, and asks for it at every start.", 'Tomo Portable 用这个密码代替 Windows 自带的加密来保护你的 Key 和身份信息，每次启动时都会询问。', 'Tomo Portable は Windows の保護の代わりにこのパスワードでキーと識別情報を暗号化し、起動のたびに入力を求めます。')}</span></div>
+              <button className="secondary" data-testid="change-password-open" onClick={() => setChangePassword(true)}>{c('Change password…', '修改密码…', 'パスワードを変更…')}</button>
+            </div>
+          )}
           <div className="setting-row">
             <div><strong>{c('Delete chats', '删除对话', 'チャットを削除')}</strong><span>{c('Removes every conversation from this computer.', '从这台电脑删除所有对话。', 'このコンピューターからすべての会話を削除します。')}</span></div>
             <button className="danger-button" onClick={() => setConfirmDelete('chats')}>{c('Delete…', '删除…', '削除…')}</button>
@@ -122,11 +130,12 @@ export function Settings({ state, refresh, onPrefs, packReview, onPackReview }: 
                   : update.state === 'up-to-date' ? c('Tomo is up to date.', 'Tomo 已是最新版本。', 'Tomo は最新です。')
                   : update.state === 'downloading' ? c(`Downloading ${update.available ?? ''}… ${update.percent ?? 0}%`, `正在下载 ${update.available ?? ''}… ${update.percent ?? 0}%`, `${update.available ?? ''} をダウンロード中… ${update.percent ?? 0}%`)
                   : update.state === 'ready' ? c(`Version ${update.available} is ready and installs when Tomo quits.`, `新版本 ${update.available} 已下载，Tomo 退出时安装。`, `バージョン ${update.available} の準備ができました。終了時にインストールされます。`)
+                  : update.state === 'portable-available' ? c(`Version ${update.available} is available. Portable builds are updated by replacing the App folder.`, `新版本 ${update.available} 已发布。便携版要替换 App 文件夹来更新。`, `バージョン ${update.available} が公開されました。ポータブル版は App フォルダーを置き換えて更新します。`)
                   : c(`Update check failed: ${update.error}`, `检查更新失败：${update.error}`, `更新の確認に失敗しました：${update.error}`)}
               </span>
             </div>
-            {update?.state === 'ready'
-              ? <button className="primary" onClick={() => void window.tomo.installUpdate()}>{c('Restart now', '立即重启', '今すぐ再起動')}</button>
+            {update?.state === 'ready' || update?.state === 'portable-available'
+              ? <button className="primary" onClick={() => void window.tomo.installUpdate()}>{update.state === 'ready' ? c('Restart now', '立即重启', '今すぐ再起動') : c('Download…', '下载…', 'ダウンロード…')}</button>
               : <button className="secondary" disabled={update?.state === 'checking' || update?.state === 'downloading'} onClick={() => void window.tomo.checkForUpdates()}>{c('Check now', '立即检查', '今すぐ確認')}</button>}
           </div>
           <div className="setting-row">
@@ -138,6 +147,7 @@ export function Settings({ state, refresh, onPrefs, packReview, onPackReview }: 
           </div>
         </section>
       </div>
+      {changePassword && <ChangePasswordSheet onClose={() => setChangePassword(false)} onChanged={() => setNotice(c('Password changed.', '密码已修改。', 'パスワードを変更しました。'))} />}
       {confirmDelete && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setConfirmDelete(null)}>
           <div className="modal" role="alertdialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>

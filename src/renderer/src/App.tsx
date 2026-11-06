@@ -7,6 +7,7 @@ import { RequestDialog } from './chat/RequestDialog'
 import { htmlLang, LocaleContext, type Locale } from './i18n'
 import { Memory } from './settings/Memory'
 import { Settings } from './settings/Settings'
+import { UnlockScreen } from './setup/Portable'
 import { Setup } from './setup/Setup'
 import { Sidebar, type View } from './Sidebar'
 import { Banner, bannerKey, type BannerNotice } from './ui/Banner'
@@ -129,12 +130,13 @@ export function App() {
   const packName = state?.pack ? pick(state.pack.manifest.name, locale) : ''
   const notice: BannerNotice | null =
     update?.state === 'ready' && update.available ? { kind: 'app-ready', version: update.available }
+      : update?.state === 'portable-available' && update.available ? { kind: 'app-portable', version: update.available }
       : pu?.available && state?.pack ? { kind: pu.available.addedAccess.length ? 'pack-review' : 'pack-available', name: packName, version: pu.available.version }
         : pu?.installed && state?.pack ? { kind: 'pack-updated', name: packName, version: pu.installed.version }
           : null
   const onBanner = () => {
     if (!notice) return
-    if (notice.kind === 'app-ready') return void window.tomo.installUpdate()
+    if (notice.kind === 'app-ready' || notice.kind === 'app-portable') return void window.tomo.installUpdate()
     if (notice.kind === 'pack-available') return void window.tomo.installPackUpdate().then(refresh)
     setDismissed(bannerKey(notice))
     setView({ kind: 'settings' })
@@ -145,7 +147,9 @@ export function App() {
   return (
     <LocaleContext.Provider value={{ locale, setLocale }}>
       <ScaleRoot scale={state.prefs.uiScale}>
-        {!state.setupDone ? (
+        {state.portable.enabled && state.portable.hasPassword && !state.portable.unlocked ? (
+          <UnlockScreen onUnlocked={() => void refresh()} />
+        ) : !state.setupDone ? (
           <Setup state={state} refresh={refresh} onDone={() => void refresh()} />
         ) : (
           <div className="app-shell page-mode">

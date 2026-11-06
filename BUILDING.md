@@ -67,6 +67,24 @@ Then check on that PC:
 
 Unsigned installers show a SmartScreen warning; sign with your code-signing certificate on the release machine.
 
+### Portable build
+
+```sh
+npm run dist:win:portable          # → release/Tomo-Portable-<version>.zip (after the installer build)
+```
+
+The zip holds `Tomo-Portable-<version>/Tomo.exe` (a small launcher, `build-resources/portable/launcher.cs`, compiled
+with the C# compiler that ships with Windows), `App/` (the app with `portable.json`) and `Data/`. The app keeps all of
+its data in `Data/` and protects the secret store with a password the student sets on first start (no DPAPI, since
+the folder moves between computers). Portable builds do not update themselves: Tomo reports a newer release and the
+student replaces `App/`. `node test/e2e/portable.mjs` checks the password flow (simulated with `TOMO_PORTABLE_ROOT`
+on any OS).
+
+### Uninstalling
+
+The uninstaller asks once whether to delete the student's data in `%LOCALAPPDATA%\Tomo` (default: keep it); updates
+and silent uninstalls (`/S`) never delete it (`build-resources/installer.nsh`).
+
 ## Releases and automatic updates
 
 Pushing a version tag builds Tomo in GitHub Actions (`.github/workflows/release.yml`, macOS arm64 + Windows x64) and

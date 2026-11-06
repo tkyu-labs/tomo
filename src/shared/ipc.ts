@@ -62,7 +62,8 @@ export type ChatGptLoginEvent =
   | { event: 'error'; message: string }
 
 export interface UpdateStatus {
-  state: 'idle' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'error'
+  /** portable-available: the Windows portable build found a newer release (downloaded by the student) */
+  state: 'idle' | 'checking' | 'up-to-date' | 'downloading' | 'ready' | 'portable-available' | 'error'
   current: string
   available?: string
   percent?: number
@@ -96,6 +97,8 @@ export interface AppState {
   engine: { state: EngineState; version: string; installed: boolean; progress?: EngineProgress }
   answerMode: AnswerMode
   packUpdate: PackUpdateState & { mode: PackUpdateMode }
+  /** Windows portable build: the secret store is protected by the student's password, entered at every start. */
+  portable: { enabled: boolean; hasPassword: boolean; unlocked: boolean }
 }
 
 export type FinishTask = 'engine' | 'settings' | 'profile' | 'start' | 'test'
@@ -208,6 +211,10 @@ export interface TomoApi {
   installUpdate(): Promise<void>
   onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
   retryEnginePrep(): Promise<void>
+  setPortablePassword(password: string): Promise<void>
+  unlockPortable(password: string): Promise<boolean>
+  changePortablePassword(current: string, next: string): Promise<boolean>
+  resetPortable(): Promise<void>
   checkPackUpdate(): Promise<void>
   installPackUpdate(): Promise<void>
   setPackUpdateMode(mode: PackUpdateMode): Promise<void>
@@ -264,6 +271,10 @@ export const IPC = {
   setAnswerMode: 'tomo:set-answer-mode',
   exportStudyLog: 'tomo:export-study-log',
   navigate: 'tomo:navigate',
+  setPortablePassword: 'tomo:portable-set-password',
+  unlockPortable: 'tomo:portable-unlock',
+  changePortablePassword: 'tomo:portable-change-password',
+  resetPortable: 'tomo:portable-reset',
   checkPackUpdate: 'tomo:check-pack-update',
   installPackUpdate: 'tomo:install-pack-update',
   setPackUpdateMode: 'tomo:set-pack-update-mode',

@@ -26,9 +26,11 @@ const stub = await startStubModel({ port: Number(process.env.TOMO_E2E_STUB_PORT)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // TOMO_E2E_APP: run an installed app binary instead (with its bundled packs); TOMO_E2E_PACK: pack to pick.
 const PACK = process.env.TOMO_E2E_PACK ?? 'example-u'
+// TOMO_E2E_PORTABLE=<password>: portable mode (data in <root>/Data, secrets protected by this password)
+const PORTABLE = process.env.TOMO_E2E_PORTABLE ?? ''
 const app = await launchApp({
   executable: process.env.TOMO_E2E_APP,
-  env: { TOMO_DATA_DIR: data, ...(process.env.TOMO_E2E_APP ? {} : { TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }) },
+  env: { TOMO_DATA_DIR: data, ...(PORTABLE ? { TOMO_PORTABLE_ROOT: data } : {}), ...(process.env.TOMO_E2E_APP ? {} : { TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }) },
   args: ['--use-mock-keychain', `--inspect=${INSPECT}`],
 })
 const $ = (sel) => `document.querySelector(${JSON.stringify(sel)})`
@@ -70,6 +72,12 @@ try {
   await audit('en:welcome')
   await next() // privacy
   await audit('en:privacy')
+  if (PORTABLE) {
+    // portable: Continue stays off until the password is set twice the same way
+    report.portableSetup = await app.evaluate(`!!document.querySelector('[data-testid=portable-setup]')`)
+    report.portableBlocked = await app.evaluate(`document.querySelector('[data-testid=setup-next]').disabled`)
+    await type('[data-testid=pw-new]', PORTABLE); await type('[data-testid=pw-confirm]', PORTABLE); await sleep(100)
+  }
   await next() // AI provider
   await click('[data-testid=other-provider]'); await sleep(200)
   report.enginePillAtStart = await app.evaluate(`document.querySelector('[data-testid=engine-pill]')?.textContent`)
@@ -194,7 +202,7 @@ try {
   report.bannerDismissed = await app.evaluate(`!document.querySelector('[data-testid=app-banner]')`)
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
+  const ok = (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

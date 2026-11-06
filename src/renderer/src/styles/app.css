@@ -65,3 +65,15 @@ html[data-platform="darwin"] .hatch-brand > * { -webkit-app-region: no-drag; }
 .app-banner button { flex: none; padding: 4px 10px; font-size: 13px; }
 .app-banner .app-banner-close { border: 0; background: transparent; color: var(--text-muted); padding: 4px; display: grid; place-items: center; }
 .pack-notes { margin: 6px 0 0; padding-left: 1.2em; color: var(--text-muted); font-size: 12.5px; display: grid; gap: 3px; }
+/* Windows portable: password in the first-run privacy step, unlock screen */
+.portable-password { margin-top: 18px; padding-top: 16px; border-top: var(--hairline) solid var(--border); text-align: left; }
+.portable-password h3 { margin: 0 0 6px; font-size: 15px; }
+.portable-password p { margin: 0 0 10px; color: var(--text-muted); font-size: 13px; }
+.password-fields { display: grid; gap: 6px; text-align: left; }
+.password-fields small { color: var(--text-muted); font-size: 12px; }
+.password-fields small.error-text, small.error-text { color: var(--danger); }
+.unlock-page { display: grid; place-items: center; }
+.unlock-card { max-width: 420px; display: grid; gap: 10px; text-align: center; }
+.unlock-card .modal-actions { justify-content: space-between; }
+.unlock-forgot { text-align: left; display: grid; gap: 8px; }
+.unlock-forgot p { margin: 2px 0 0; font-size: 12.5px; }

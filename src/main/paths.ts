@@ -1,4 +1,5 @@
-import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 
 export interface PathInputs {
   platform: NodeJS.Platform
@@ -36,4 +37,14 @@ export function tomoPaths(dataDir: string): TomoPaths {
     secretStore: join(dataDir, 'secrets.bin'),
     logs: join(dataDir, 'logs'),
   }
+}
+
+/**
+ * Windows portable build: `<root>\Tomo.exe` (launcher), `<root>\App\` (the app, with `portable.json` next to its
+ * exe) and `<root>\Data\` (all of Tomo's data). Returns `<root>`, or undefined for an installed app.
+ * TOMO_PORTABLE_ROOT forces portable mode (tests).
+ */
+export function portableRoot(execPath: string, env: Record<string, string | undefined>, exists: (p: string) => boolean = existsSync): string | undefined {
+  if (env.TOMO_PORTABLE_ROOT) return env.TOMO_PORTABLE_ROOT
+  return exists(join(dirname(execPath), 'portable.json')) ? resolve(dirname(execPath), '..') : undefined
 }

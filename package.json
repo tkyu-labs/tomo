@@ -21,7 +21,9 @@
     "dist:mac": "node -e \"require('node:fs').rmSync('release',{recursive:true,force:true})\" && node scripts/fetch-uv.mjs && node scripts/prepare-packs.mjs && electron-vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --publish never -c.electronDownload.cache=.dev/cache/electron",
     "dist:win": "node -e \"require('node:fs').rmSync('release',{recursive:true,force:true})\" && node scripts/fetch-uv.mjs win32-x64 && node scripts/prepare-packs.mjs && electron-vite build && electron-builder --win --publish never -c.electronDownload.cache=.dev/cache/electron",
     "test:unit": "vitest run src",
-    "test:e2e:quit": "electron-vite build && node test/e2e/quit.mjs"
+    "test:e2e:quit": "electron-vite build && node test/e2e/quit.mjs",
+    "test:e2e:portable": "electron-vite build && node test/e2e/portable.mjs",
+    "dist:win:portable": "npm run dist:win && node scripts/make-portable.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -89,3 +89,11 @@ jobs:
           # no certificate → no signing attempt (and no search of the runner's keychain / certificate store)
           if [ -z "$CSC_LINK" ]; then unset CSC_LINK CSC_KEY_PASSWORD; export CSC_IDENTITY_AUTO_DISCOVERY=false; fi
           npx electron-builder --${{ matrix.target }} --publish always
+      - name: Windows portable (zip with launcher, App and Data)
+        if: matrix.target == 'win'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/make-portable.mjs
+          gh release upload "$GITHUB_REF_NAME" release/Tomo-Portable-*.zip --clobber -R "$GITHUB_REPOSITORY"

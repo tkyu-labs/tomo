@@ -1,0 +1,159 @@
+# Tomo's own Hatch, used when the student's school has no pack ("My school is not listed"). Same format as a pack's
+# hatch.yaml (tomo-packs schema/hatch.schema.json). Only general questions; nothing school-specific.
+version: 1
+sections:
+  - id: about
+    title: { en: "About you", zh: "关于你", ja: "あなたについて" }
+    intro:
+      en: "A few questions so Tomo can help you better. Everything is optional; you can change it later in What Tomo remembers."
+      zh: "几个问题，让 Tomo 更好地帮你。都可以跳过，之后也能在「Tomo 记住的内容」里修改。"
+      ja: "Tomo がよりよく手伝えるように、いくつか質問します。どれも省略でき、あとで「Tomo の記憶」から変更できます。"
+  - id: help
+    title: { en: "What you need", zh: "你需要什么帮助", ja: "手伝ってほしいこと" }
+  - id: style
+    title: { en: "How Tomo should talk", zh: "交流方式", ja: "話し方" }
+
+questions:
+  # ------------------------------------------------------------------ about
+  - id: preferred_name
+    section: about
+    ask: setup
+    type: identifier
+    variable: PREFERRED_NAME
+    aliases: [name]
+    label: { en: "What should I call you?", zh: "我应该怎么称呼你？", ja: "何とお呼びすればいいですか？" }
+    why:
+      en: "A nickname, your name, or nothing at all: you can skip this. Like every name, it is replaced before anything is sent to an AI model."
+      zh: "你希望我怎么称呼你？也可以直接跳过。昵称、姓名都可以；和所有姓名一样，发送给 AI 模型前都会被替换掉。"
+      ja: "ニックネームでも名前でも、空欄のままでもかまいません。名前はいつも、AI モデルに送る前に置き換えられます。"
+    remember: "Call the user {{PREFERRED_NAME}}."
+
+  - id: reply_language
+    section: about
+    ask: setup
+    type: choice
+    allow_other: true
+    label: { en: "Which language should I answer in?", zh: "我用哪种语言回答你？", ja: "どの言語で答えましょうか？" }
+    why:
+      en: "Starts with the app language; pick another one if you prefer."
+      zh: "默认跟随界面语言，你也可以换成别的。"
+      ja: "最初はアプリの表示言語です。別の言語も選べます。"
+    options:
+      - { value: en, label: { en: "English", zh: "英语", ja: "英語" } }
+      - { value: zh, label: { en: "Simplified Chinese", zh: "简体中文", ja: "中国語（簡体字）" } }
+      - { value: ja, label: { en: "Japanese", zh: "日语", ja: "日本語" } }
+    remember: "Reply in {answer} unless the user writes in another language."
+
+  - id: daily
+    section: about
+    ask: setup
+    type: multi
+    allow_other: true
+    label: { en: "What do you mostly do?", zh: "你平时主要在做些什么？", ja: "ふだん主に何をしていますか？" }
+    why:
+      en: "Your daily work or interests, so I can help in a way that fits."
+      zh: "我想了解一下你的日常工作或兴趣，这样以后能给你更合适的帮助。"
+      ja: "日々の仕事や関心を教えてください。これからの手伝い方を合わせるためです。"
+    options:
+      - { value: software, label: { en: "Software development", zh: "软件开发", ja: "ソフトウェア開発" } }
+      - { value: it_ops, label: { en: "IT and operations", zh: "运维与 IT", ja: "IT・運用" } }
+      - { value: study, label: { en: "Study and research", zh: "学习与研究", ja: "学習・研究" } }
+      - { value: business, label: { en: "Business and management", zh: "商业与管理", ja: "ビジネス・マネジメント" } }
+      - { value: content, label: { en: "Creating content", zh: "内容创作", ja: "コンテンツ制作" } }
+      - { value: daily_life, label: { en: "Everyday life", zh: "日常生活", ja: "日常生活" } }
+    remember: "Mainly does: {answer}."
+
+  - id: self_intro
+    section: about
+    ask: setup
+    type: text
+    max_length: 120
+    label: { en: "Anything to add about yourself?", zh: "还想补充一句自我介绍吗？", ja: "自己紹介をひとこと" }
+    why:
+      en: "Optional, one sentence is enough."
+      zh: "可选，一句话就够。"
+      ja: "任意です。ひとことで十分です。"
+    placeholder: { en: "e.g. second-year exchange student who likes photography", zh: "例如：喜欢摄影的二年级交换生", ja: "例：写真が好きな交換留学生（2 年）" }
+    remember: "In their words: {answer}"
+
+  # ------------------------------------------------------------------ help
+  - id: goals
+    section: help
+    ask: setup
+    type: multi
+    allow_other: true
+    label: { en: "What do you want me to help you with most?", zh: "你最希望我帮你完成什么？", ja: "いちばん手伝ってほしいことは何ですか？" }
+    why:
+      en: "Choose as many as you like. This decides what I offer first."
+      zh: "你打算主要让我做些什么？可以选择多个。这决定了我以后优先提供哪些帮助。"
+      ja: "いくつでも選べます。何を優先して手伝うかがこれで決まります。"
+    options:
+      - { value: code, label: { en: "Writing code", zh: "编写代码", ja: "コードを書く" } }
+      - { value: tech_help, label: { en: "Solving technical problems", zh: "解决技术问题", ja: "技術的な問題の解決" } }
+      - { value: research, label: { en: "Search and research", zh: "搜索与研究", ja: "検索・調査" } }
+      - { value: writing, label: { en: "Writing and organising", zh: "写作与整理", ja: "文章作成・整理" } }
+      - { value: automation, label: { en: "Automating tasks", zh: "任务自动化", ja: "作業の自動化" } }
+      - { value: tutoring, label: { en: "Learning and tutoring", zh: "学习辅导", ja: "学習サポート" } }
+      - { value: brainstorm, label: { en: "Brainstorming", zh: "头脑风暴", ja: "アイデア出し" } }
+    remember: "Wants help most with: {answer}. Offer this first."
+
+  - id: experience
+    section: help
+    ask: setup
+    type: choice
+    label: { en: "How should I explain things in fields you know?", zh: "面对你熟悉的领域，我应该如何解释问题？", ja: "あなたが詳しい分野では、どう説明しましょうか？" }
+    why:
+      en: "So I neither over-explain nor skip steps you need."
+      zh: "这样我既不会讲得太啰嗦，也不会跳过你需要的步骤。"
+      ja: "説明しすぎず、必要な手順も飛ばさないためです。"
+    options:
+      - { value: basics, label: { en: "Start from the basics", zh: "从基础解释", ja: "基礎から説明" } }
+      - { value: some, label: { en: "Assume some experience", zh: "假设具备一定经验", ja: "ある程度の経験を前提に" } }
+      - { value: expert, label: { en: "Talk to me as an expert", zh: "直接进行专业讨论", ja: "専門的に話す" } }
+      - { value: adapt, label: { en: "Adapt to the topic", zh: "根据话题灵活调整", ja: "話題に合わせて調整" } }
+    remember: "Explanations in familiar fields: {answer}."
+
+  - id: familiar_fields
+    section: help
+    ask: setup
+    type: text
+    max_length: 120
+    label: { en: "Which fields do you know well?", zh: "你具体熟悉哪些领域？", ja: "詳しい分野は？" }
+    why:
+      en: "Optional. Concrete fields work better than a general level."
+      zh: "可选。写具体领域比笼统的“初级/高级”更有用。"
+      ja: "任意です。全体のレベルより、具体的な分野のほうが役立ちます。"
+    placeholder: { en: "e.g. Python, Linux, networking", zh: "例如：Python、Linux、网络工程", ja: "例：Python、Linux、ネットワーク" }
+    remember: "Knows well: {answer} (go deeper there)."
+
+  # ------------------------------------------------------------------ style
+  - id: answer_style
+    section: style
+    ask: setup
+    type: multi
+    label: { en: "How would you like me to answer?", zh: "你希望我以怎样的方式回答问题？", ja: "どんな答え方がいいですか？" }
+    why:
+      en: "Pick any that fit; they combine."
+      zh: "选你喜欢的，可以组合。"
+      ja: "当てはまるものをいくつでも。組み合わせられます。"
+    options:
+      - { value: direct, label: { en: "Conclusion first, no small talk", zh: "直接给结论，少说客套话", ja: "結論から、前置きは少なく" } }
+      - { value: details, label: { en: "Explain the reasons and technical details", zh: "给出详细原理和技术细节", ja: "仕組みや技術的な詳細も" } }
+      - { value: steps, label: { en: "Steps I can follow first", zh: "优先提供可以执行的操作步骤", ja: "実行できる手順を優先" } }
+      - { value: uncertainty, label: { en: "Mark what is uncertain", zh: "对不确定的信息明确标注", ja: "不確かな情報ははっきり示す" } }
+      - { value: challenge, label: { en: "Point out problems in my plans", zh: "主动指出我的方案可能存在的问题", ja: "私の案の問題点も指摘する" } }
+    remember: "Answer style: {answer}."
+
+  - id: notes
+    section: style
+    ask: setup
+    type: choice
+    allow_other: true
+    label: { en: "Anything I should keep in mind?", zh: "有什么需要特别注意的吗？", ja: "気をつけてほしいことはありますか？" }
+    why:
+      en: "Personal habits or limits, e.g. a language not to use, or not to ask again for what you already told me."
+      zh: "有没有你希望我遵守的个人习惯或限制？比如不要使用某种语言、不要反复询问已经提供过的信息、修改现有项目之前先检查上下文。"
+      ja: "守ってほしい習慣や制限はありますか？ 例：使わないでほしい言語、一度伝えたことを何度も聞かない、など。"
+    options:
+      - { value: none, label: { en: "Nothing for now", zh: "暂时没有", ja: "今は特にない" } }
+    remember: "The user's own rules: {answer}."

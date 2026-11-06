@@ -31,7 +31,7 @@ describe('Hatch', () => {
   it('writes USER.md with placeholders only', () => {
     const md = renderUserMd(userMemoryEntries(hatch, answers))
     expect(md).toBe(
-      "The student's name is {{FULL_NAME}}.\n§\nStudent number: {{STUDENT_NUMBER}}.\n§\nFaculty: Faculty of Information.\n§\nYear 3 student.\n§\nGrades: Yes, but only while I'm watching.\n",
+      "Reply in English unless the user writes in another language.\n§\nThe student's name is {{FULL_NAME}}.\n§\nStudent number: {{STUDENT_NUMBER}}.\n§\nFaculty: Faculty of Information.\n§\nYear 3 student.\n§\nGrades: Yes, but only while I'm watching.\n",
     )
     expect(md).not.toMatch(/Lin Mei|23B0001/)
   })

@@ -7,6 +7,7 @@ import type {
   Reasoning, SessionRow, TaskUpdate,
 } from '@shared/ipc'
 import { identifiersFrom } from '@shared/pack/hatch'
+import { activeHatch } from '@shared/pack/core-hatch'
 import type { Answers, Lang } from '@shared/pack/types'
 import { Masker } from '@shared/privacy/masker'
 import { HermesClient, toTurnEvent } from '../hermes/client'
@@ -330,8 +331,9 @@ export class AppController {
         if (keyEnv && !this.secrets.read().keys[keyEnv]) throw new Error('No key saved for the AI provider.')
         if (s.provider.id === 'openai' && !existsSync(join(this.opts.paths.hermesHome, 'auth.json'))) throw new Error('Not signed in to ChatGPT.')
         // identifiers go to the encrypted store, everything else to settings.json
-        const identifiers = pack ? identifiersFrom(pack.hatch, answers) : []
-        const idQuestions = new Set(pack?.hatch.questions.filter((q) => q.type === 'identifier').map((q) => q.id))
+        const hatch = activeHatch(pack?.hatch)
+        const identifiers = identifiersFrom(hatch, answers)
+        const idQuestions = new Set(hatch.questions.filter((q) => q.type === 'identifier').map((q) => q.id))
         this.secrets.update((d) => { d.identifiers = identifiers })
         this.settings.update((st) => { st.answers = Object.fromEntries(Object.entries(answers).filter(([k]) => !idQuestions.has(k))) })
       })
@@ -354,13 +356,13 @@ export class AppController {
     const pack = this.installedPack(s)
     const full = { ...s.answers, ...(answers ?? {}) }
     // identifier answers come back from the secret store when not given (e.g. on a later config rewrite)
-    if (!answers && pack) {
-      for (const q of pack.hatch.questions.filter((x) => x.type === 'identifier')) {
+    if (!answers) {
+      for (const q of activeHatch(pack?.hatch).questions.filter((x) => x.type === 'identifier')) {
         const entry = this.secrets.read().identifiers.find((i) => i.name === q.variable)
         if (entry) full[q.id] = entry.kind === 'name' ? { name: entry.values[0] ?? '', furigana: entry.values[1] ?? '' } : entry.values[0]
       }
     }
-    const res = writeProfile({ hermesHome: this.opts.paths.hermesHome, pluginsSourceDir: this.opts.pluginsDir, pack, provider: s.provider!, fallback: fallbackSelection(s), answers: full, answerMode: s.answerMode })
+    const res = writeProfile({ hermesHome: this.opts.paths.hermesHome, pluginsSourceDir: this.opts.pluginsDir, pack, provider: s.provider!, fallback: fallbackSelection(s), answers: full, answerMode: s.answerMode, locale: s.prefs.locale })
     return `${res.userMdEntries.length} entries · ${res.identifiers.map((i) => `{{${i.name}}}`).join(', ') || 'no identifiers'}`
   }
 

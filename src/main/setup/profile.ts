@@ -2,7 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AnswerMode } from '@shared/ipc'
 import { identifiersFrom, renderUserMd, userMemoryEntries } from '@shared/pack/hatch'
-import type { Answers } from '@shared/pack/types'
+import type { Answers, Lang } from '@shared/pack/types'
+import { activeHatch } from '@shared/pack/core-hatch'
 import type { IdentifierEntry } from '@shared/privacy/masker'
 import type { LoadedPack } from '../pack/pack'
 import { renderHermesConfig } from './config'
@@ -20,6 +21,8 @@ export interface ProfileInput {
   fallback?: ProviderSelection
   answers: Answers
   answerMode?: AnswerMode
+  /** App language: USER.md's default reply language when the Hatch did not set one. */
+  locale?: Lang
 }
 
 export interface ProfileResult {
@@ -29,8 +32,10 @@ export interface ProfileResult {
 
 /** The "save settings" + "create profile" steps of first-run Finish: everything Hermes reads, placeholders only. */
 export function writeProfile(input: ProfileInput): ProfileResult {
-  const identifiers = input.pack ? identifiersFrom(input.pack.hatch, input.answers) : []
-  const userMdEntries = input.pack ? userMemoryEntries(input.pack.hatch, input.answers) : []
+  // the school pack's Hatch, or Tomo's general one without a pack
+  const hatch = activeHatch(input.pack?.hatch)
+  const identifiers = identifiersFrom(hatch, input.answers)
+  const userMdEntries = userMemoryEntries(hatch, input.answers, input.locale)
   writeHermesHome(
     input.hermesHome,
     {

@@ -229,7 +229,7 @@ function OtherInput({ value, onChange, lang, open, setOpen }: { value: string; o
 
 export function HatchSummary({ hatch, answers, lang, onEdit }: { hatch: Hatch; answers: Answers; lang: Lang; onEdit: (sectionIndex: number) => void }) {
   const t = (x: Record<Lang, string>) => x[lang]
-  const memory = userMemoryEntries(hatch, answers)
+  const memory = userMemoryEntries(hatch, answers, lang)
   const text = memory.join("\n§\n")
   const later = hatch.questions.filter((q) => q.ask === "later")
   return (
@@ -270,10 +270,14 @@ export function HatchSummary({ hatch, answers, lang, onEdit }: { hatch: Hatch; a
         {text.length} {t(ui.chars)} {HATCH_BUDGET}
       </span>
 
-      <h3>{t(ui.later)}</h3>
-      <ul className="hatch-later">
-        {later.map((q) => <li key={q.id}>{pick(q.label, lang)}</li>)}
-      </ul>
+      {later.length > 0 && (
+        <>
+          <h3>{t(ui.later)}</h3>
+          <ul className="hatch-later">
+            {later.map((q) => <li key={q.id}>{pick(q.label, lang)}</li>)}
+          </ul>
+        </>
+      )}
     </div>
   )
 }

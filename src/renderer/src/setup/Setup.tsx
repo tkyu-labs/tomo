@@ -6,6 +6,7 @@ import { useCopy, useLocale, type Locale } from '../i18n'
 import { Icon, type IconName } from '../ui/Icon'
 import { HatchPage, HatchSummary } from './HatchFlow'
 import { passwordOk, PortablePasswordSetup } from './Portable'
+import { activeHatch } from '@shared/pack/core-hatch'
 import { ProviderSheet, providerLabel, suggestModel } from './ProviderSheet'
 
 function EnginePill({ state, refresh }: { state: AppState; refresh: () => Promise<AppState> }) {
@@ -78,8 +79,9 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
   useEffect(() => { if (step === STEP.browser && !browsers) void window.tomo.findBrowsers().then(setBrowsers) }, [step, browsers])
 
   const pack = packs.find((p) => p.id === packId)
-  const hatch = pack?.hatch
-  const hatchPages = hatch?.sections.length ?? 0
+  // no school pack ("My school is not listed"): Tomo's general Hatch takes the pack's place
+  const hatch = activeHatch(pack?.hatch)
+  const hatchPages = hatch.sections.length
   const inHatchQuestions = step === STEP.hatch && hatchPage < hatchPages
 
   const runFinish = () => {
@@ -107,8 +109,11 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
       }
       if (step === STEP.pack) {
         await window.tomo.selectPack(packId)
-        if (!packId) { setStep(STEP.browser); return }
+        // the general Hatch replies in the app language unless the student picks another one
+        if (!packId && answers.reply_language === undefined) { setAnswers((a) => ({ ...a, reply_language: locale })); setPrefilled((p) => [...p, 'reply_language']) }
       }
+      // no school pack: no portal, so no browser step
+      if (step === STEP.hatch && !packId) { runFinish(); setStep(STEP.finish); return }
       if (step + 1 === STEP.finish) runFinish()
       setStep(step + 1)
     } catch (e) {
@@ -117,7 +122,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
   }
   const back = () => {
     if (step === STEP.hatch && hatchPage > 0) return setHatchPage(hatchPage - 1)
-    if (step === STEP.browser && !packId) return setStep(STEP.pack)
+    if (step === STEP.finish && !packId) return setStep(STEP.hatch)
     setStep(step - 1)
   }
 
@@ -270,11 +275,11 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
             </>
           )}
 
-          {step === STEP.hatch && hatch && pack && (
+          {step === STEP.hatch && (
             <>
-              <div className="hatch-page-header">
+              <div className="hatch-page-header" data-testid="hatch-header" data-hatch={pack ? 'pack' : 'general'}>
                 <div className="hatch-page-meta">
-                  <span>{pick(pack.manifest.name, locale)}</span>
+                  <span>{pack ? pick(pack.manifest.name, locale) : 'Tomo'}</span>
                   <span className="hatch-counter">
                     {hatchPage < hatchPages ? c(`Page ${hatchPage + 1} of ${hatchPages}`, `第 ${hatchPage + 1} / ${hatchPages} 页`, `${hatchPage + 1} / ${hatchPages} ページ`) : c('Summary', '汇总', 'まとめ')}
                   </span>

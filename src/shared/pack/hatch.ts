@@ -1,7 +1,7 @@
 // Hatch logic shared by the setup UI (renderer) and the profile writer (main): conditions, prefills, the USER.md
 // entries and the identifier list for the privacy layer. Ported from the UI prototype.
 import type { IdentifierEntry } from '../privacy/masker'
-import type { Answer, Answers, Hatch, HatchQuestion, MultiAnswer } from './types'
+import type { Answer, Answers, Hatch, HatchQuestion, Lang, MultiAnswer } from './types'
 
 /** Hermes' built-in user memory limit Tomo sets (memory.user_char_limit); Hatch may fill 60 %. */
 export const USER_MEMORY_LIMIT = 3000
@@ -78,11 +78,24 @@ export function answerText(q: HatchQuestion, a: Answer | undefined): string {
   return String(a)
 }
 
-/** memories/USER.md entries: one per answered question with a `remember` line; identifiers stay placeholders. */
-export function userMemoryEntries(hatch: Hatch, answers: Answers): string[] {
-  return hatch.questions
+const LANGUAGE_EN: Record<Lang, string> = { en: 'English', zh: 'Simplified Chinese', ja: 'Japanese' }
+/** Tomo's own entry when the student answered none of the questions (any Hatch). */
+export const SKIPPED_NOTE = 'The user skipped the first-run questions. Do not ask for these details up front; learn their needs and preferences from the conversation, and ask only when an answer really depends on it.'
+
+/**
+ * memories/USER.md entries: one per answered question with a `remember` line; identifiers stay placeholders. Tomo's
+ * own rules for every Hatch: always one language entry (the app language unless a `reply_language` question set it),
+ * and SKIPPED_NOTE when nothing else was answered. Nothing is made up for skipped questions.
+ */
+export function userMemoryEntries(hatch: Hatch, answers: Answers, appLang: Lang = 'en'): string[] {
+  const entries = hatch.questions
     .filter((q) => q.remember && conditionHolds(q.when, answers) && isAnswered(q, answers[q.id]))
     .map((q) => q.remember!.replace('{answer}', answerText(q, answers[q.id])).trim())
+  const language = hatch.questions.find((q) => q.id === 'reply_language')
+  if (!language || !isAnswered(language, answers.reply_language)) entries.unshift(`Reply in ${LANGUAGE_EN[appLang]} unless the user writes in another language.`)
+  const answeredAny = hatch.questions.some((q) => q.ask === 'setup' && q.id !== 'reply_language' && conditionHolds(q.when, answers) && isAnswered(q, answers[q.id]))
+  if (!answeredAny) entries.push(SKIPPED_NOTE)
+  return entries
 }
 
 /** Hermes' USER.md format: entries separated by "\n§\n" (tools/memory_tool.py). */

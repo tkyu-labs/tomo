@@ -200,9 +200,24 @@ try {
   report.banner = await app.evaluate(`(() => { const b = document.querySelector('[data-testid=app-banner]'); return b ? { kind: b.dataset.kind, text: b.innerText.trim(), action: b.querySelector('[data-testid=banner-action]')?.textContent } : null })()`)
   await click('[data-testid=banner-dismiss]'); await sleep(200)
   report.bannerDismissed = await app.evaluate(`!document.querySelector('[data-testid=app-banner]')`)
+  if (!REAL) {
+    // removing the school pack: confirmation, then only Tomo's general Hatch (all skipped) and Finish, back to the chat
+    await click('[data-testid=nav-settings]'); await sleep(400)
+    await click('[data-testid=pack-remove]'); await sleep(200)
+    report.removeDialog = await app.evaluate(`!!document.querySelector('[data-testid=remove-pack]')`)
+    await click('[data-testid=remove-pack-confirm]')
+    await app.waitFor(`document.querySelector('[data-testid=hatch-header]')?.dataset.hatch === 'general'`, 30000)
+    report.generalHatch = await app.evaluate(`document.querySelector('[data-testid=hatch-header] h1')?.textContent`)
+    for (let i = 0; i < 3; i++) await next() // three pages, nothing answered
+    await next() // summary → Finish
+    await app.waitFor(`document.querySelector('[data-testid=setup-next]') && !document.querySelector('[data-testid=setup-next]').disabled`, 180000)
+    await next() // Start using Tomo
+    await app.waitFor($('[data-testid=sidebar]'), 30000)
+    report.afterRemove = await app.evaluate(`Promise.all([window.tomo.getState(), window.tomo.userMemory()]).then(([s, m]) => ({ pack: s.pack?.id ?? null, hatchPending: s.hatchPending, memory: m }))`)
+  }
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
+  const ok = (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && (REAL || (report.removeDialog && report.generalHatch === 'About you' && report.afterRemove?.pack === null && !report.afterRemove.hatchPending && report.afterRemove.memory.length === 2 && report.afterRemove.memory[1].startsWith('The user skipped'))) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

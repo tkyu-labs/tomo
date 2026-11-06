@@ -150,6 +150,7 @@ export class AppController {
       engine: { state: this.hermes?.state ?? 'stopped', version: HERMES_VERSION, installed: this.engineInstalled(), progress: this.opts.engine?.last },
       answerMode: s.answerMode,
       packUpdate: { ...this.packUpdater.state, mode: s.packUpdateMode ?? 'auto' },
+      hatchPending: !!s.hatchPending,
       portable: this.opts.portableKey ? { enabled: true, hasPassword: this.opts.portableKey.hasPassword(), unlocked: this.opts.portableKey.unlocked() } : { enabled: false, hasPassword: false, unlocked: true },
     }
   }
@@ -348,7 +349,22 @@ export class AppController {
   }
 
   completeSetup(): void {
-    this.settings.update((s) => { s.setupDone = true })
+    this.settings.update((s) => { s.setupDone = true; delete s.hatchPending })
+  }
+
+  /**
+   * One school pack at a time. Removing it deletes the pack and everything that came from it: its files (skills,
+   * SOUL fragment), the answers to its Hatch and the identifiers it defined. Chats and Hermes' own memory of the
+   * conversations stay. The general Hatch runs next (hatchPending); its Finish rewrites SOUL, USER.md and the config.
+   */
+  async removePack(): Promise<void> {
+    const s = this.settings.read()
+    if (!s.packId) return
+    rmSync(join(this.opts.paths.data, 'packs', s.packId), { recursive: true, force: true })
+    this.settings.update((st) => { st.packId = undefined; st.answers = {}; st.hatchPending = true })
+    this.secrets.update((d) => { d.identifiers = [] })
+    this.masker = new Masker([])
+    this.packUpdater.state = { checking: false }
   }
 
   private writeProfile(answers?: Answers): string {

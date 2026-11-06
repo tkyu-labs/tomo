@@ -51,12 +51,13 @@ const FINISH_TASKS: FinishTask[] = ['engine', 'settings', 'profile', 'start', 't
 export function Setup({ state, refresh, onDone }: { state: AppState; refresh: () => Promise<AppState>; onDone: () => void }) {
   const c = useCopy()
   const { locale, setLocale } = useLocale()
-  const [step, setStep] = useState(0)
+  // after removing the school pack only the general Hatch (and Finish) runs; everything else is set up already
+  const [step, setStep] = useState<number>(state.hatchPending ? STEP.hatch : 0)
   const [packs, setPacks] = useState<PackSummary[]>([])
   const [packId, setPackId] = useState<string | null>(state.pack?.id ?? null)
   const [hatchPage, setHatchPage] = useState(0)
-  const [answers, setAnswers] = useState<Answers>({})
-  const [prefilled, setPrefilled] = useState<string[]>([])
+  const [answers, setAnswers] = useState<Answers>(() => (state.hatchPending ? { reply_language: state.prefs.locale } : {}))
+  const [prefilled, setPrefilled] = useState<string[]>(() => (state.hatchPending ? ['reply_language'] : []))
   const [sheetOpen, setSheetOpen] = useState(false)
   const [gakuenKey, setGakuenKey] = useState('')
   const [error, setError] = useState<string | null>(null)

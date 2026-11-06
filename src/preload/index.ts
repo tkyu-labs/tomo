@@ -44,6 +44,7 @@ const api: TomoApi = {
   unlockPortable: invoke(IPC.unlockPortable) as TomoApi['unlockPortable'],
   changePortablePassword: invoke(IPC.changePortablePassword) as TomoApi['changePortablePassword'],
   resetPortable: invoke(IPC.resetPortable) as TomoApi['resetPortable'],
+  removePack: invoke(IPC.removePack) as TomoApi['removePack'],
   checkPackUpdate: invoke(IPC.checkPackUpdate) as TomoApi['checkPackUpdate'],
   installPackUpdate: invoke(IPC.installPackUpdate) as TomoApi['installPackUpdate'],
   setPackUpdateMode: invoke(IPC.setPackUpdateMode) as TomoApi['setPackUpdateMode'],

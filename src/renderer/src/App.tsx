@@ -149,7 +149,7 @@ export function App() {
       <ScaleRoot scale={state.prefs.uiScale}>
         {state.portable.enabled && state.portable.hasPassword && !state.portable.unlocked ? (
           <UnlockScreen onUnlocked={() => void refresh()} />
-        ) : !state.setupDone ? (
+        ) : !state.setupDone || state.hatchPending ? (
           <Setup state={state} refresh={refresh} onDone={() => void refresh()} />
         ) : (
           <div className="app-shell page-mode">

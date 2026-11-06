@@ -1,5 +1,6 @@
 // Settings → School pack: the installed pack, how its updates are handled (automatic / manual), the last check, an
 // update that is available or waiting for review, and what changed in the last update.
+import { useState } from 'react'
 import type { AppState, PackUpdateMode } from '@shared/ipc'
 import { pick } from '@shared/pack/types'
 import { useCopy, useLocale } from '../i18n'
@@ -13,6 +14,7 @@ export function PackSettings({ state, busy, run, reviewOpen, onReview }: { state
   const pack = state.pack
   const u = state.packUpdate
   const time = (t?: number) => (t ? new Date(t).toLocaleString(locale === 'zh' ? 'zh-CN' : locale, { dateStyle: 'medium', timeStyle: 'short' }) : c('not yet', '尚未检查', 'まだ'))
+  const [confirmRemove, setConfirmRemove] = useState(false)
   if (!pack) return null
   const name = pick(pack.manifest.name, locale)
   const install = () => run('pack', () => window.tomo.installPackUpdate(), c('Pack updated. It applies from your next question.', '能力包已更新，从下一个问题开始生效。', 'パックを更新しました。次の質問から反映されます。'))
@@ -22,7 +24,28 @@ export function PackSettings({ state, busy, run, reviewOpen, onReview }: { state
       <h2>{c('School pack', '学校能力包', '学校パック')}</h2>
       <div className="setting-row">
         <div><strong>{name}</strong><span>{pick(pack.manifest.school.name, locale)} · v{pack.manifest.version} · {pack.manifest.publisher.name}</span></div>
+        <button className="danger-button" data-testid="pack-remove" disabled={!!busy} onClick={() => setConfirmRemove(true)}>{c('Remove…', '删除…', '削除…')}</button>
       </div>
+      <p className="pack-one-note">{c("Tomo uses one school pack at a time. To use another school's pack, remove this one first.", 'Tomo 一次只能使用一个学校能力包。要换成别的学校，请先删除这个。', '学校パックは一度に 1 つだけ使えます。別の学校のパックを使うには、先にこのパックを削除してください。')}</p>
+      {confirmRemove && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setConfirmRemove(false)}>
+          <div className="modal" role="alertdialog" aria-modal="true" data-testid="remove-pack" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-icon"><Icon name="trash" size={22} /></div>
+            <h2>{c(`Remove ${name}?`, `删除 ${name}？`, `${name} を削除しますか？`)}</h2>
+            <p className="modal-intro">{c('Tomo deletes everything that came from this pack:', 'Tomo 会删除来自这个能力包的所有内容：', 'このパックに由来するものをすべて削除します：')}</p>
+            <ul className="pack-notes">
+              <li>{c('its skills, topics and school knowledge', '它的技能、快捷话题和学校知识', 'スキル、トピック、学校の知識')}</li>
+              <li>{c('your answers to its questions (faculty, year, grades consent …)', '你在它的问卷里的回答（学部、年级、成绩读取同意等）', 'このパックの質問への回答（学部、学年、成績の読み取りの同意など）')}</li>
+              <li>{c('the name and student number saved for it', '为它保存的姓名和学号', 'このパック用に保存した氏名と学籍番号')}</li>
+            </ul>
+            <p className="modal-intro">{c('Your chats stay. Then Tomo asks a few general questions instead; you can skip all of them.', '你的对话会保留。之后 Tomo 会改问几个通用问题，都可以跳过。', '会話は残ります。その後、一般的な質問をいくつかします。すべて省略できます。')}</p>
+            <div className="modal-actions">
+              <button className="secondary" onClick={() => setConfirmRemove(false)}>{c('Cancel', '取消', 'キャンセル')}</button>
+              <button className="danger-button" data-testid="remove-pack-confirm" onClick={() => { setConfirmRemove(false); void run('pack-remove', () => window.tomo.removePack()) }}>{c('Remove and continue', '删除并继续', '削除して続ける')}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="setting-row" data-testid="pack-updates">
         <div>
           <strong>{c('Pack updates', '能力包更新', 'パックの更新')}</strong>

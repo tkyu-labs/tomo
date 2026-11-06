@@ -99,6 +99,8 @@ export interface AppState {
   engine: { state: EngineState; version: string; installed: boolean; progress?: EngineProgress }
   answerMode: AnswerMode
   packUpdate: PackUpdateState & { mode: PackUpdateMode }
+  /** The school pack was removed: Tomo's general Hatch runs before the chat (first-run screen at the Hatch step). */
+  hatchPending: boolean
   /** Windows portable build: the secret store is protected by the student's password, entered at every start. */
   portable: { enabled: boolean; hasPassword: boolean; unlocked: boolean }
 }
@@ -217,6 +219,8 @@ export interface TomoApi {
   unlockPortable(password: string): Promise<boolean>
   changePortablePassword(current: string, next: string): Promise<boolean>
   resetPortable(): Promise<void>
+  /** Remove the school pack and what came from it (skills, its answers and identifiers); chats stay. */
+  removePack(): Promise<void>
   checkPackUpdate(): Promise<void>
   installPackUpdate(): Promise<void>
   setPackUpdateMode(mode: PackUpdateMode): Promise<void>
@@ -277,6 +281,7 @@ export const IPC = {
   unlockPortable: 'tomo:portable-unlock',
   changePortablePassword: 'tomo:portable-change-password',
   resetPortable: 'tomo:portable-reset',
+  removePack: 'tomo:remove-pack',
   checkPackUpdate: 'tomo:check-pack-update',
   installPackUpdate: 'tomo:install-pack-update',
   setPackUpdateMode: 'tomo:set-pack-update-mode',

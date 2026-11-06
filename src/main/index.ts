@@ -233,6 +233,7 @@ handle(IPC.setPortablePassword, (pw: string) => controller.setPortablePassword(p
 handle(IPC.unlockPortable, (pw: string) => controller.unlockPortable(pw))
 handle(IPC.changePortablePassword, (cur: string, next: string) => controller.changePortablePassword(cur, next))
 handle(IPC.resetPortable, () => controller.resetPortable())
+handle(IPC.removePack, () => controller.removePack())
 handle(IPC.checkPackUpdate, () => controller.packUpdater.check())
 handle(IPC.installPackUpdate, () => controller.packUpdater.install())
 handle(IPC.setPackUpdateMode, (m: PackUpdateMode) => controller.setPackUpdateMode(m))

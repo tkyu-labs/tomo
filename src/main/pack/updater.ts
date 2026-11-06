@@ -1,5 +1,6 @@
-// School pack updates from tomo-packs releases. Checked at start (after a short delay) and every 6 hours, like the
-// app itself. A newer release is downloaded and its Sigstore signature verified into a staging folder first:
+// School pack updates from tomo-packs' main branch (src/main/pack/remote.ts). Checked at start (after a short delay)
+// and every 6 hours, like the app itself. A changed pack is downloaded and checked against its pack.lock into a
+// staging folder first:
 // - "auto" mode installs it right away when it asks for no access the installed pack does not have, and says so;
 // - an update that adds access (sites, personal data, computer use) always waits for the student's review;
 // - "manual" mode only reports what is available.
@@ -9,8 +10,8 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PackManifest } from '@shared/pack/types'
 import type { PackUpdateMode, PackUpdateState } from '@shared/ipc'
-import { compareVersions, installPack, loadPack, type LoadedPack } from './pack'
-import { latestPackRelease, stagePackRelease } from './release'
+import { installPack, loadPack, type LoadedPack } from './pack'
+import { lockDigest, remotePack, stageRemotePack, tomoSatisfies, type RemotePack } from './remote'
 
 const SIX_HOURS = 6 * 60 * 60 * 1000
 const FIRST_CHECK_DELAY = 20_000
@@ -52,8 +53,10 @@ export interface PackUpdaterOptions {
   /** A pack update was installed (the controller reloads the engine). */
   onInstalled: (pack: LoadedPack) => void | Promise<void>
   onState: (s: PackUpdateState) => void
-  latest?: (id: string) => Promise<string | null>
-  stage?: (id: string, version: string, stageDir: string) => Promise<LoadedPack>
+  /** This Tomo's version (for the pack's `requires.tomo`). */
+  tomoVersion: string
+  remote?: (id: string) => Promise<RemotePack | null>
+  stage?: (id: string, remote: RemotePack, stageDir: string) => Promise<LoadedPack>
 }
 
 export class PackUpdater {
@@ -86,21 +89,26 @@ export class PackUpdater {
     const id = pack.manifest.id
     this.set({ checking: true, error: undefined })
     try {
-      const latest = await (this.opts.latest ?? ((x) => latestPackRelease(x)))(id)
-      if (!latest || compareVersions(latest, pack.manifest.version) <= 0) {
+      const remote = await (this.opts.remote ?? ((x) => remotePack(x)))(id)
+      // same files as installed (pack.lock fingerprint), or not in the catalog: nothing to do
+      if (!remote || remote.lock === lockDigest(pack.dir)) {
         this.staged = undefined
-        return this.set({ checking: false, checkedAt: Date.now(), available: undefined })
+        return this.set({ checking: false, checkedAt: Date.now(), available: undefined, needsTomo: undefined })
       }
-      const stageDir = join(this.opts.dataDir, 'cache', 'pack-staging', `${id}-${latest}`)
-      const staged = await (this.opts.stage ?? ((x, v, d) => stagePackRelease(x, v, this.opts.dataDir, d)))(id, latest, stageDir)
+      if (!tomoSatisfies(remote.requiresTomo, this.opts.tomoVersion)) {
+        this.staged = undefined
+        return this.set({ checking: false, checkedAt: Date.now(), available: undefined, needsTomo: { version: remote.version, requires: remote.requiresTomo! } })
+      }
+      const stageDir = join(this.opts.dataDir, 'cache', 'pack-staging', `${id}-${remote.commit.slice(0, 12)}`)
+      const staged = await (this.opts.stage ?? ((x, r, d) => stageRemotePack(x, r, this.opts.dataDir, d)))(id, remote, stageDir)
       this.staged = staged
       const access = addedAccess(pack.manifest, staged.manifest)
-      const available = { version: latest, addedAccess: access, notes: latestChangelog(staged.dir), hatchChanged: staged.hatch.version !== pack.hatch.version }
+      const available = { version: remote.version, addedAccess: access, notes: latestChangelog(staged.dir), hatchChanged: staged.hatch.version !== pack.hatch.version }
       if (this.opts.mode() === 'auto' && access.length === 0) {
         this.set({ checking: false, checkedAt: Date.now() })
         await this.install()
       } else {
-        this.set({ checking: false, checkedAt: Date.now(), available })
+        this.set({ checking: false, checkedAt: Date.now(), available, needsTomo: undefined })
       }
     } catch (e) {
       this.set({ checking: false, checkedAt: Date.now(), error: e instanceof Error ? e.message : String(e) })

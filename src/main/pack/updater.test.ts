@@ -1,10 +1,11 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { PackUpdateMode, PackUpdateState } from '@shared/ipc'
 import { installPack, loadPack, type LoadedPack } from './pack'
-import { latestPackRelease } from './release'
+import { lockDigest, pyJson, tomoSatisfies, verifyPackFiles, type RemotePack } from './remote'
 import { addedAccess, latestChangelog, PackUpdater } from './updater'
 
 const fixture = resolve(import.meta.dirname, '../../../test/fixtures/packs/example-u')
@@ -13,8 +14,9 @@ const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'tomo-packupd-')); dirs
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
 
 /** A copy of the fixture pack as a newer release would contain it. */
-function release(version: string, edit: (yaml: string) => string = (y) => y, changelog = `# Changelog\n\n## ${version}\n\n- Clearer answers.\n- Fixed a typo\n  in the guide.\n\n## 0.0.1\n\n- First.\n`): (id: string, v: string, stageDir: string) => Promise<LoadedPack> {
-  return async (_id, v, stageDir) => {
+function release(version: string, edit: (yaml: string) => string = (y) => y, changelog = `# Changelog\n\n## ${version}\n\n- Clearer answers.\n- Fixed a typo\n  in the guide.\n\n## 0.0.1\n\n- First.\n`): (id: string, r: RemotePack, stageDir: string) => Promise<LoadedPack> {
+  return async (_id, r, stageDir) => {
+    const v = r.version
     const dir = join(stageDir, 'example-u')
     cpSync(fixture, dir, { recursive: true })
     writeFileSync(join(dir, 'pack.yaml'), edit(readFileSync(join(dir, 'pack.yaml'), 'utf8').replace('version: 0.0.1', `version: ${v}`)))
@@ -23,7 +25,9 @@ function release(version: string, edit: (yaml: string) => string = (y) => y, cha
   }
 }
 
-function setup(mode: PackUpdateMode, latest: string | null, stage = release(latest ?? '0.0.1')) {
+const remote = (version: string, extra: Partial<RemotePack> = {}): RemotePack => ({ commit: 'a'.repeat(40), version, lock: 'changed', ...extra })
+
+function setup(mode: PackUpdateMode, latest: RemotePack | null, stage = release(latest?.version ?? '0.0.1')) {
   const data = tmp()
   installPack(fixture, data)
   const states: PackUpdateState[] = []
@@ -34,7 +38,8 @@ function setup(mode: PackUpdateMode, latest: string | null, stage = release(late
     mode: () => mode,
     onState: (s) => states.push(s),
     onInstalled: (p) => { installed.push(p.manifest.version) },
-    latest: async () => latest,
+    tomoVersion: '0.1.0',
+    remote: async () => latest,
     stage,
   })
   return { data, up, states, installed, version: () => loadPack(join(data, 'packs', 'example-u')).manifest.version }
@@ -57,21 +62,36 @@ describe('pack updates', () => {
     expect(latestChangelog(d)).toEqual(['One.', 'Two continued.'])
   })
 
-  it('picks the newest published release of the pack', async () => {
-    const rows = [
-      { tag_name: 'example-u/v0.1.0', draft: false, prerelease: false },
-      { tag_name: 'example-u/v0.1.10', draft: false, prerelease: false },
-      { tag_name: 'example-u/v0.1.9', draft: false, prerelease: false },
-      { tag_name: 'example-u/v0.2.0', draft: true, prerelease: false },
-      { tag_name: 'other/v9.0.0', draft: false, prerelease: false },
-    ]
-    const fetchFn = (async () => new Response(JSON.stringify(rows))) as unknown as typeof fetch
-    expect(await latestPackRelease('example-u', fetchFn)).toBe('0.1.10') // 0.1.10 is newer than 0.1.9 (no carry-over)
-    expect(await latestPackRelease('missing', fetchFn)).toBeNull()
+  it('fingerprints pack.lock exactly like tools/validate.py (json.dumps sort_keys, ensure_ascii)', () => {
+    expect(pyJson({ b: 1, a: 'é 学', c: [true, null] })).toBe('{"a": "\\u00e9 \\u5b66", "b": 1, "c": [true, null]}')
+    // the real catalog of the tomo-packs checkout, when it is there
+    const packs = resolve(import.meta.dirname, '../../../tomo-packs')
+    if (existsSync(join(packs, 'catalog.json'))) {
+      const entry = JSON.parse(readFileSync(join(packs, 'catalog.json'), 'utf8')).packs.find((p: { id: string }) => p.id === 'shonan-it')
+      expect(lockDigest(join(packs, 'packs', 'shonan-it'))).toBe(entry.lock_sha256)
+    }
+  })
+
+  it('accepts a folder only when every file matches pack.lock and the catalog', () => {
+    const d = join(tmp(), 'example-u')
+    cpSync(fixture, d, { recursive: true })
+    const files = Object.fromEntries(['pack.yaml', 'hatch.yaml', 'soul.md'].map((f) => [f, createHash('sha256').update(readFileSync(join(d, f))).digest('hex')]))
+    writeFileSync(join(d, 'pack.lock'), JSON.stringify({ pack: 'example-u', version: '0.0.1', files }))
+    const lock = lockDigest(d)!
+    expect(() => verifyPackFiles(d, lock)).not.toThrow()
+    expect(() => verifyPackFiles(d, 'other')).toThrow(/catalog/)
+    writeFileSync(join(d, 'soul.md'), 'changed')
+    expect(() => verifyPackFiles(d, lock)).toThrow(/soul.md/)
+  })
+
+  it('respects requires.tomo', () => {
+    expect(tomoSatisfies('>=0.1.0', '0.1.0')).toBe(true)
+    expect(tomoSatisfies('>=0.1.10', '0.1.9')).toBe(false)
+    expect(tomoSatisfies(undefined, '0.0.1')).toBe(true)
   })
 
   it('automatic: installs an update with the same access and reports it', async () => {
-    const t = setup('auto', '0.0.2')
+    const t = setup('auto', remote('0.0.2'))
     await t.up.check()
     expect(t.version()).toBe('0.0.2')
     expect(t.installed).toEqual(['0.0.2'])
@@ -80,7 +100,7 @@ describe('pack updates', () => {
   })
 
   it('automatic: an update that adds access waits for the review', async () => {
-    const t = setup('auto', '0.1.0', release('0.1.0', (y) => y.replace('network: [www.example-u.ac.jp]', 'network: [www.example-u.ac.jp, lib.example-u.ac.jp]')))
+    const t = setup('auto', remote('0.1.0'), release('0.1.0', (y) => y.replace('network: [www.example-u.ac.jp]', 'network: [www.example-u.ac.jp, lib.example-u.ac.jp]')))
     await t.up.check()
     expect(t.version()).toBe('0.0.1')
     expect(t.up.state.available).toMatchObject({ version: '0.1.0', addedAccess: ['website: lib.example-u.ac.jp'] })
@@ -90,20 +110,28 @@ describe('pack updates', () => {
   })
 
   it('manual: only reports; nothing newer: nothing to do', async () => {
-    const m = setup('manual', '0.0.2')
+    const m = setup('manual', remote('0.0.2'))
     await m.up.check()
     expect(m.version()).toBe('0.0.1')
     expect(m.up.state.available?.version).toBe('0.0.2')
-    const n = setup('auto', '0.0.1')
+    // unchanged: the catalog fingerprint equals the installed pack.lock
+    const n = setup('auto', null)
+    writeFileSync(join(n.data, 'packs', 'example-u', 'pack.lock'), JSON.stringify({ pack: 'example-u', version: '0.0.1', files: {} }))
+    n.up['opts'].remote = async () => remote('0.0.1', { lock: lockDigest(join(n.data, 'packs', 'example-u'))! })
     await n.up.check()
     expect(n.up.state).toMatchObject({ checking: false, available: undefined })
     expect(n.up.state.checkedAt).toBeGreaterThan(0)
   })
 
-  it('a failed check or signature leaves the pack as it is', async () => {
-    const t = setup('auto', '0.0.2', async () => { throw new Error('The example-u pack failed its signature check: bad') })
+  it('a failed check or file check leaves the pack as it is; a newer Tomo requirement waits', async () => {
+    const t = setup('auto', remote('0.0.2'), async () => { throw new Error('file does not match pack.lock: soul.md') })
     await t.up.check()
     expect(t.version()).toBe('0.0.1')
-    expect(t.up.state.error).toMatch(/signature/)
+    expect(t.up.state.error).toMatch(/pack.lock/)
+    // a pack that needs a newer Tomo waits
+    const w = setup('auto', remote('0.2.0', { requiresTomo: '>=0.2.0' }))
+    await w.up.check()
+    expect(w.version()).toBe('0.0.1')
+    expect(w.up.state.needsTomo).toEqual({ version: '0.2.0', requires: '>=0.2.0' })
   })
 })

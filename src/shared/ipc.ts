@@ -42,6 +42,8 @@ export interface PackUpdateState {
   available?: { version: string; addedAccess: string[]; notes: string[]; hatchChanged: boolean }
   /** The update installed last (automatically or after the OK): shown once as "updated". */
   installed?: { version: string; at: number; notes: string[]; hatchChanged: boolean }
+  /** A newer pack needs a newer Tomo (`requires.tomo`): it waits until Tomo is updated. */
+  needsTomo?: { version: string; requires: string }
   error?: string
 }
 

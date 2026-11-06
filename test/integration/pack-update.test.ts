@@ -1,4 +1,4 @@
-// A school pack update (staged from a "release" copy of the fixture pack) is installed automatically, SOUL.md is
+// A school pack update (staged from a changed copy of the fixture pack, as main would hold it) is installed automatically, SOUL.md is
 // rebuilt from the new pack and the engine restarts, so the next question runs on the new pack.
 import { cpSync, readFileSync, rmSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -33,8 +33,9 @@ beforeAll(async () => {
     baseEnv: { PATH: process.env.PATH, HOME: join(dir, 'home'), TMPDIR: process.env.TMPDIR },
     emit: { chat: (s, e) => events.push([s, e]), request: () => {}, setupTask: () => {}, engineState: () => {} },
     packUpdates: {
-      latest: async () => '0.0.2',
-      stage: async (_id, v, stageDir) => {
+      remote: async () => ({ commit: 'b'.repeat(40), version: '0.0.2', lock: 'changed' }),
+      stage: async (_id, r, stageDir) => {
+        const v = r.version
         const d = join(stageDir, 'example-u')
         cpSync(fixture, d, { recursive: true })
         writeFileSync(join(d, 'pack.yaml'), readFileSync(join(d, 'pack.yaml'), 'utf8').replace('version: 0.0.1', `version: ${v}`))

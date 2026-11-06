@@ -66,7 +66,7 @@ export interface ControllerOptions {
   /** Windows portable build: the password-based key that is also `encryptor`. */
   portableKey?: PortableKey
   /** Test seams for the pack updater (default: tomo-packs releases on GitHub). */
-  packUpdates?: Pick<PackUpdaterOptions, 'latest' | 'stage'>
+  packUpdates?: Pick<PackUpdaterOptions, 'remote' | 'stage'>
 }
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void }
@@ -106,6 +106,7 @@ export class AppController {
       mode: () => this.settings.read().packUpdateMode ?? 'auto',
       onState: (s) => this.opts.emit.packUpdate?.(s),
       onInstalled: () => this.reloadEngineWhenIdle(),
+      tomoVersion: opts.appVersion ?? '0.0.0',
       ...opts.packUpdates,
     })
     this.study = new StudyLog(join(opts.paths.data, 'study', 'log.jsonl'), participant, () => {

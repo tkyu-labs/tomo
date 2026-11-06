@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { join } from 'node:path'
 import type {
   AppState, AnswerMode, ChatEvent, Connection, EngineProgress, EngineRequest, FallbackChoice, FinishTask, HistoryMessage, PackSummary, Prefs,
-  ProviderChoice, ProviderId,
+  PackUpdateMode, PackUpdateState, ProviderChoice, ProviderId,
   Reasoning, SessionRow, TaskUpdate,
 } from '@shared/ipc'
 import { identifiersFrom } from '@shared/pack/hatch'
@@ -14,6 +14,7 @@ import { buildHermesEnv } from '../hermes/env'
 import { HermesProcess, type HermesRuntime } from '../hermes/process'
 import type { GatewayEvent } from '../hermes/rpc'
 import { installPack, loadPack, refreshBundledPack, type LoadedPack } from '../pack/pack'
+import { PackUpdater, type PackUpdaterOptions } from '../pack/updater'
 import type { TomoPaths } from '../paths'
 import { SecretStore, type Encryptor } from '../secrets/store'
 import { evacuateDotenv } from '../setup/home'
@@ -59,7 +60,10 @@ export interface ControllerOptions {
     setupTask(u: TaskUpdate): void
     engineState(state: AppState['engine']['state']): void
     engineProgress?(p: EngineProgress): void
+    packUpdate?(s: PackUpdateState): void
   }
+  /** Test seams for the pack updater (default: tomo-packs releases on GitHub). */
+  packUpdates?: Pick<PackUpdaterOptions, 'latest' | 'stage'>
 }
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void }
@@ -77,6 +81,9 @@ export class AppController {
   private pendingRequests = new Map<string, Pending>()
   private requestSeq = 0
   readonly study: StudyLog
+  readonly packUpdater: PackUpdater
+  /** A pack update was installed while a question was running: restart the engine when it ends. */
+  private reloadPending = false
 
   constructor(private readonly opts: ControllerOptions) {
     mkdirSync(opts.paths.data, { recursive: true })
@@ -90,6 +97,14 @@ export class AppController {
     }
     // the engine is prepared in the background from the first screen on
     if (opts.engine && !opts.engine.installed()) void this.prepareEngine().catch(() => undefined)
+    this.packUpdater = new PackUpdater({
+      dataDir: opts.paths.data,
+      installed: () => (this.settings.read().setupDone ? this.installedPack() : undefined),
+      mode: () => this.settings.read().packUpdateMode ?? 'auto',
+      onState: (s) => this.opts.emit.packUpdate?.(s),
+      onInstalled: () => this.reloadEngineWhenIdle(),
+      ...opts.packUpdates,
+    })
     this.study = new StudyLog(join(opts.paths.data, 'study', 'log.jsonl'), participant, () => {
       const s = this.settings.read()
       return { mode: s.answerMode, pack: s.packId ?? null, appVersion: opts.appVersion, model: s.provider ? `${s.provider.id}/${s.provider.model}` : null }
@@ -127,6 +142,7 @@ export class AppController {
       pack: pack ? { id: pack.manifest.id, manifest: pack.manifest, hatch: pack.hatch } : undefined,
       engine: { state: this.hermes?.state ?? 'stopped', version: HERMES_VERSION, installed: this.engineInstalled(), progress: this.opts.engine?.last },
       answerMode: s.answerMode,
+      packUpdate: { ...this.packUpdater.state, mode: s.packUpdateMode ?? 'auto' },
     }
   }
 
@@ -226,6 +242,19 @@ export class AppController {
   async setFallback(choice: FallbackChoice | null): Promise<void> {
     this.settings.update((s) => { s.fallbackPick = choice ?? 'off' })
     await this.applyProviders()
+  }
+
+  // ------------------------------------------------------------------ school pack updates
+  setPackUpdateMode(mode: PackUpdateMode): void {
+    this.settings.update((s) => { s.packUpdateMode = mode })
+  }
+
+  /** A new pack is in place: SOUL.md and plugins are rebuilt at engine start, so restart it between questions. */
+  async reloadEngineWhenIdle(): Promise<void> {
+    if (!this.hermes || this.hermes.state === 'stopped') return
+    if (this.runningTurns.size > 0) { this.reloadPending = true; return }
+    this.reloadPending = false
+    await this.startEngine(true)
   }
 
   /** Rewrites config.yaml for the provider in use and the fallback, and restarts a running engine (keys are env). */
@@ -421,7 +450,10 @@ export class AppController {
     }
     const ev = toTurnEvent(e)
     if (!ev) return
-    if (ev.kind === 'complete' || ev.kind === 'error') this.runningTurns.delete(raw.session_id)
+    if (ev.kind === 'complete' || ev.kind === 'error') {
+      this.runningTurns.delete(raw.session_id)
+      if (this.reloadPending && this.runningTurns.size === 0) setTimeout(() => void this.reloadEngineWhenIdle(), 500)
+    }
     this.study.event(raw.session_id, ev)
     this.opts.emit.chat(raw.session_id, ev)
   }

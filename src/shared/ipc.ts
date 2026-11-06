@@ -33,6 +33,18 @@ export interface FallbackChoice {
   model: string
 }
 
+/** School pack updates: installed automatically (unless they add access) or only reported. */
+export type PackUpdateMode = 'auto' | 'manual'
+export interface PackUpdateState {
+  checking: boolean
+  checkedAt?: number
+  /** A newer release, verified and waiting: for the student's OK (it adds access) or because updates are manual. */
+  available?: { version: string; addedAccess: string[]; notes: string[]; hatchChanged: boolean }
+  /** The update installed last (automatically or after the OK): shown once as "updated". */
+  installed?: { version: string; at: number; notes: string[]; hatchChanged: boolean }
+  error?: string
+}
+
 /** What closing the main window does: keep running in the tray / menu bar, or quit Tomo. */
 export type CloseAction = 'tray' | 'quit'
 
@@ -83,6 +95,7 @@ export interface AppState {
   /** installed: the engine files exist in this installation (checked at start, not assumed) */
   engine: { state: EngineState; version: string; installed: boolean; progress?: EngineProgress }
   answerMode: AnswerMode
+  packUpdate: PackUpdateState & { mode: PackUpdateMode }
 }
 
 export type FinishTask = 'engine' | 'settings' | 'profile' | 'start' | 'test'
@@ -195,6 +208,10 @@ export interface TomoApi {
   installUpdate(): Promise<void>
   onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
   retryEnginePrep(): Promise<void>
+  checkPackUpdate(): Promise<void>
+  installPackUpdate(): Promise<void>
+  setPackUpdateMode(mode: PackUpdateMode): Promise<void>
+  onPackUpdate(cb: (s: PackUpdateState) => void): () => void
   /** The tray menu asks the window to show a page. */
   onNavigate(cb: (page: 'settings') => void): () => void
 }
@@ -247,4 +264,8 @@ export const IPC = {
   setAnswerMode: 'tomo:set-answer-mode',
   exportStudyLog: 'tomo:export-study-log',
   navigate: 'tomo:navigate',
+  checkPackUpdate: 'tomo:check-pack-update',
+  installPackUpdate: 'tomo:install-pack-update',
+  setPackUpdateMode: 'tomo:set-pack-update-mode',
+  packUpdateEvent: 'tomo:pack-update-event',
 } as const

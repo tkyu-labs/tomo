@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import type { AppState, Prefs, UpdateStatus } from '@shared/ipc'
 import { useCopy, useLocale, type Locale } from '../i18n'
 import { ModelSettings } from './ModelSettings'
+import { PackSettings } from './PackSettings'
 
 const SCALES = [0.8, 0.9, 1, 1.1, 1.25]
 
-export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh: () => Promise<AppState>; onPrefs: (p: Partial<Prefs>) => void }) {
+export function Settings({ state, refresh, onPrefs, packReview, onPackReview }: { state: AppState; refresh: () => Promise<AppState>; onPrefs: (p: Partial<Prefs>) => void; packReview: boolean; onPackReview: (open: boolean) => void }) {
   const c = useCopy()
   const { locale, setLocale } = useLocale()
   const [busy, setBusy] = useState<string | null>(null)
@@ -75,6 +76,8 @@ export function Settings({ state, refresh, onPrefs }: { state: AppState; refresh
         </section>
 
         <ModelSettings state={state} busy={busy} run={run} />
+
+        <PackSettings state={state} busy={busy} run={run} reviewOpen={packReview} onReview={onPackReview} />
 
         <section className="settings-section">
           <h2>{c('Privacy & data', '隐私与数据', 'プライバシーとデータ')}</h2>

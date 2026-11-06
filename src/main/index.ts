@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { IPC, type AppInfo, type FallbackChoice, type ProviderChoice, type ProviderId } from '@shared/ipc'
+import { IPC, type AppInfo, type FallbackChoice, type PackUpdateMode, type ProviderChoice, type ProviderId } from '@shared/ipc'
 import { localeFromTag } from '@shared/locale'
 import { AppController } from './app/controller'
 import { Updater } from './app/updater'
@@ -77,6 +77,7 @@ const controller = new AppController({
     setupTask: (u) => send(IPC.setupTask, u),
     engineState: (s) => send(IPC.engineState, s),
     engineProgress: (p) => send(IPC.engineProgress, p),
+    packUpdate: (s) => send(IPC.packUpdateEvent, s),
   },
 })
 
@@ -222,6 +223,9 @@ handle(IPC.addProvider, (choice: ProviderChoice, key?: string, models?: string[]
 handle(IPC.useProvider, (id: ProviderId) => controller.useProvider(id))
 handle(IPC.removeProvider, (id: ProviderId) => controller.removeProvider(id))
 handle(IPC.setFallback, (f: FallbackChoice | null) => controller.setFallback(f))
+handle(IPC.checkPackUpdate, () => controller.packUpdater.check())
+handle(IPC.installPackUpdate, () => controller.packUpdater.install())
+handle(IPC.setPackUpdateMode, (m: PackUpdateMode) => controller.setPackUpdateMode(m))
 handle(IPC.setReasoning, (l: Parameters<AppController['setReasoning']>[0]) => controller.setReasoning(l))
 handle(IPC.userMemory, () => controller.userMemory())
 handle(IPC.restartEngine, () => controller.startEngine(true))
@@ -263,6 +267,8 @@ app.whenReady().then(async () => {
   if (!primaryInstance) return
   setMenu()
   updater.start()
+  // school pack updates from tomo-packs releases (packaged app; TOMO_PACK_UPDATES=1 in development)
+  if (app.isPackaged || process.env.TOMO_PACK_UPDATES === '1') controller.packUpdater.start()
   if (isDev && process.platform === 'darwin') app.dock?.setIcon(join(appIconDir, 'icon.png')) // packaged builds use icon.icns
   win = createWindow()
   tray.create()
@@ -281,6 +287,7 @@ app.on('window-all-closed', () => {
 // ⌘Q, tray Quit, Windows shutdown and the updater all pass through here
 app.on('before-quit', () => {
   quitting = true
+  controller.packUpdater.stop()
   tray.destroy()
   void controller.stopEngine()
 })

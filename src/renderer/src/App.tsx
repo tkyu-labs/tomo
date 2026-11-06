@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppState, EngineRequest, Prefs, SessionRow, UpdateStatus } from '@shared/ipc'
+import { pick } from '@shared/pack/types'
 import { StreamUnmasker } from '@shared/privacy/masker'
 import { applyEvent, Chat, type ChatSession } from './chat/Chat'
 import { RequestDialog } from './chat/RequestDialog'
@@ -22,6 +23,7 @@ export function App() {
   const [update, setUpdate] = useState<UpdateStatus | null>(null)
   const [dismissed, setDismissed] = useState<string | null>(null)
   useEffect(() => { void window.tomo.updateStatus().then(setUpdate); return window.tomo.onUpdateStatus(setUpdate) }, [])
+  const [packReview, setPackReview] = useState(false)
   const [values, setValues] = useState<Record<string, string>>({})
   const [requests, setRequests] = useState<EngineRequest[]>([])
   const unmaskers = useRef(new Map<string, StreamUnmasker>())
@@ -61,6 +63,7 @@ export function App() {
   }, [ready, loadRows])
 
   useEffect(() => window.tomo.onEngineState(() => void refresh()), [refresh])
+  useEffect(() => window.tomo.onPackUpdate(() => void refresh()), [refresh])
   useEffect(() => window.tomo.onNavigate((page) => setView({ kind: page })), [])
   useEffect(() => window.tomo.onEngineRequest((r) => setRequests((q) => [...q, r])), [])
   useEffect(() => window.tomo.onChatEvent((sessionId, e) => {
@@ -121,10 +124,21 @@ export function App() {
 
   const titles = useMemo(() => Object.fromEntries(Object.values(sessions).filter((s) => s.title).map((s) => [s.id, s.title])), [sessions])
 
-  // one banner at a time: a ready app update first (pack notices follow)
-  const notice: BannerNotice | null = update?.state === 'ready' && update.available ? { kind: 'app-ready', version: update.available } : null
+  // one banner at a time: a ready app update first, then a pack update waiting for review, then pack news
+  const pu = state?.packUpdate
+  const packName = state?.pack ? pick(state.pack.manifest.name, locale) : ''
+  const notice: BannerNotice | null =
+    update?.state === 'ready' && update.available ? { kind: 'app-ready', version: update.available }
+      : pu?.available && state?.pack ? { kind: pu.available.addedAccess.length ? 'pack-review' : 'pack-available', name: packName, version: pu.available.version }
+        : pu?.installed && state?.pack ? { kind: 'pack-updated', name: packName, version: pu.installed.version }
+          : null
   const onBanner = () => {
-    if (notice?.kind === 'app-ready') void window.tomo.installUpdate()
+    if (!notice) return
+    if (notice.kind === 'app-ready') return void window.tomo.installUpdate()
+    if (notice.kind === 'pack-available') return void window.tomo.installPackUpdate().then(refresh)
+    setDismissed(bannerKey(notice))
+    setView({ kind: 'settings' })
+    if (notice.kind === 'pack-review') setPackReview(true)
   }
 
   if (!state) return null
@@ -139,7 +153,7 @@ export function App() {
             <div className="main-column">
             {notice && bannerKey(notice) !== dismissed && <Banner notice={notice} onAction={onBanner} onDismiss={() => setDismissed(bannerKey(notice))} />}
             {view.kind === 'settings' ? (
-              <Settings state={state} refresh={refresh} onPrefs={(p) => void setPrefs(p)} />
+              <Settings state={state} refresh={refresh} onPrefs={(p) => void setPrefs(p)} packReview={packReview} onPackReview={setPackReview} />
             ) : view.kind === 'memory' ? (
               <Memory values={values} />
             ) : (

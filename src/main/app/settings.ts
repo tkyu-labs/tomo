@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Answers } from '@shared/pack/types'
-import type { AnswerMode, Connection, FallbackChoice, Prefs, ProviderChoice } from '@shared/ipc'
+import type { AnswerMode, Connection, FallbackChoice, PackUpdateMode, Prefs, ProviderChoice } from '@shared/ipc'
 import type { Lang } from '@shared/pack/types'
 
 /** Non-secret settings (settings.json in Tomo's folder). Identifier answers are never stored here. */
@@ -22,6 +22,8 @@ export interface Settings {
   participantId?: string
   /** GakuenAI relay URL for tester builds (set by the installer or TOMO_GAKUEN_URL). */
   gakuenUrl?: string
+  /** School pack updates (default: automatic). */
+  packUpdateMode?: PackUpdateMode
   /** Windows: the "Tomo keeps running in the tray" notice was shown after the first close. */
   trayHintShown?: boolean
 }

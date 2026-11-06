@@ -18,6 +18,8 @@ describe('Hatch', () => {
 
   it('prefills the faculty from the student number', () => {
     expect(prefills(hatch, 'student_number', { student_number: '23b0001' })).toEqual({ faculty: 'B' })
+    // a letter without an option (a faculty the pack does not list yet) is left for the student to pick
+    expect(prefills(hatch, 'student_number', { student_number: '23Q0001' })).not.toHaveProperty('faculty')
   })
 
   it('validates the student number', () => {

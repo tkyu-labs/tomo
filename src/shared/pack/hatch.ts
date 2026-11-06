@@ -57,6 +57,8 @@ export function prefills(hatch: Hatch, changedId: string, answers: Answers, pref
     if (!g) continue
     let v: string = pf.map?.[g] ?? g
     if (pf.prefix) v = pf.prefix + v
+    // a choice is prefilled only with one of its options (e.g. a new faculty letter): otherwise the student picks
+    if ((q.type === 'choice' || q.type === 'multi') && !q.allow_other && !q.options?.some((o) => String(o.value) === v)) continue
     out[q.id] = q.type === 'number' ? Number(v) : v
   }
   return out

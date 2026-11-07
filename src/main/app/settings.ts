@@ -24,6 +24,9 @@ export interface Settings {
   gakuenUrl?: string
   /** The school pack was removed: the general Hatch runs before the chat comes back (first-run screen at Hatch). */
   hatchPending?: boolean
+  /** Reading personal data (grades, …) on the pack's personal sites, decided once: in the chat the first time (when the
+   * Hatch never asked) or in Settings. Wins over the Hatch answer. */
+  personalConsent?: 'granted' | 'refused'
   /** The app version that last ran (the migration screen shows "Tomo <from> → <to>"). */
   lastAppVersion?: string
   /** School pack updates (default: automatic). */

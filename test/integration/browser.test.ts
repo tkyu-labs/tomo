@@ -38,6 +38,7 @@ let hermes: HermesProcess
 let client: HermesClient
 const approvals: Record<string, unknown>[] = []
 let approve = true
+let lastEvents: { kind: string; personalSite?: string }[] = []
 const identifiers = [{ name: 'STUDENT_NUMBER', values: ['23B0001'], kind: 'id' as const, label: 'student number' }, { name: 'FULL_NAME', values: ['Lin Mei'], kind: 'name' as const, label: 'name' }]
 
 async function start() {
@@ -45,7 +46,7 @@ async function start() {
     base: { ...process.env, HOME: join(dir, 'home') }, hermesHome: join(dir, 'hermes'), runtimeDir: devTools,
     cacheDir: join(repoRoot, '.dev', 'cache'), keys: { TOMO_CUSTOM_API_KEY: 'stub' },
     // localhost (= portal.altBase) plays the school's personal-data site
-    privatePayload: JSON.stringify({ identifiers, fill: { tools: ['browser_type'], origins: ['127.0.0.1'] }, personal: { origins: ['localhost'], refused: false } }),
+    privatePayload: JSON.stringify({ identifiers, fill: { tools: ['browser_type'], origins: ['127.0.0.1'] }, personal: { origins: ['localhost'], consent: 'ask' } }),
     browser: { executablePath: chrome!.path, profileDir: join(dir, 'browser-profile') },
   })
   hermes = new HermesProcess({ runtime: devRuntime(repoRoot), env, onServerRequest: async (m, p) => {
@@ -63,7 +64,7 @@ async function run(steps: { tool: string; args: Record<string, unknown> }[]) {
   stub.script.push(...steps, { text: 'done' })
   const { session_id } = await client.createSession()
   const before = stub.requests.length
-  await client.runTurn(session_id, 'run the plan', undefined, 180_000)
+  lastEvents = await client.runTurn(session_id, 'run the plan', undefined, 180_000)
   return stub.requests.slice(before).flatMap((r) => r.body.messages.filter((m) => m.role === 'tool').map((m) => String(m.content))).filter((v, i, a) => a.indexOf(v) === i)
 }
 
@@ -85,15 +86,13 @@ beforeAll(async () => {
 afterAll(async () => { await hermes?.stopAndWait(); await stub?.close(); await portal?.close(); removeDir(dir) })
 
 describe.skipIf(!ready)('browser (Chrome, headed, Tomo profile)', () => {
-  it('fills the student number on an allowed page only after approval; the model sees the placeholder', async () => {
+  it('fills the student number on an allowed page without a question; the model sees the placeholder', async () => {
     const results = await run([
       { tool: 'browser_navigate', args: { url: `${portal.base}/form` } },
       { tool: 'browser_type', args: { ref: '@e1', text: '{{STUDENT_NUMBER}}' } },
       { tool: 'browser_console', args: { expression: "document.querySelector('#sid').value" } },
     ])
-    expect(approvals.length).toBe(1)
-    expect(JSON.stringify(approvals[0])).toContain('[tomo-privacy]')
-    expect(JSON.stringify(approvals[0])).toContain('127.0.0.1')
+    expect(approvals.length).toBe(0) // the school's own pages are trusted
     expect(portal.echoes.at(-1)).toBe('23B0001') // the page got the real value
     expect(results.join('\n')).toContain('{{STUDENT_NUMBER}}') // the model read back only the placeholder
     for (const r of stub.requests) expect(r.raw).not.toMatch(/23B0001|Lin Mei/)
@@ -105,7 +104,7 @@ describe.skipIf(!ready)('browser (Chrome, headed, Tomo profile)', () => {
       { tool: 'browser_type', args: { ref: '@e1', text: '{{STUDENT_NUMBER}}' } },
     ])
     expect(results.join('\n')).toContain('may only be filled in')
-    expect(approvals.length).toBe(1) // nobody was asked again
+    expect(approvals.length).toBe(0)
   }, 240_000)
 
   it.skipIf(!existsSync(extractMd))('runs the campussquare extraction on a portal-like page, masked', async () => {
@@ -121,31 +120,27 @@ describe.skipIf(!ready)('browser (Chrome, headed, Tomo profile)', () => {
     expect(out).not.toMatch(/23B0001|Lin Mei/)
   }, 240_000)
 
-  it('on a personal-data site: snapshots carry no data, a read waits for approval, a refusal never reaches the model', async () => {
+  it('on a personal-data site: snapshots carry no data, reading is asked once, the answer is marked', async () => {
     portal.signIn()
     const read = "JSON.stringify([...document.querySelectorAll('td')].map((c) => c.textContent).filter((t) => /情報リテラシー/.test(t)))"
-    // navigate: only headings and controls; the grade rows are not in the result
+    // navigate: only headings and controls; the grade rows are not in the result, nobody is asked
     const before = approvals.length
     let results = await run([{ tool: 'browser_navigate', args: { url: `${portal.altBase}/grades` } }])
     expect(results.join('\n')).not.toContain('情報リテラシー')
     expect(results.join('\n')).toContain('Do not ask for permission')
     expect(approvals.length).toBe(before)
-    // approved read (same session: each run is a new chat): the student saw the value in the preview, then the model got it
+    // first read: the one-time question (the Hatch never asked here), then the value reaches the model
     approve = true
     results = await run([{ tool: 'browser_navigate', args: { url: `${portal.altBase}/grades` } }, { tool: 'browser_console', args: { expression: read } }])
     expect(approvals.length).toBe(before + 1)
-    const shown = JSON.parse(String(approvals.at(-1)!.description).replace('[tomo-privacy]', '').trim())
-    expect(shown).toMatchObject({ kind: 'send', site: 'localhost' })
-    expect(shown.preview).toContain('情報リテラシー')
+    expect(JSON.parse(String(approvals.at(-1)!.description).replace('[tomo-privacy]', '').trim())).toEqual({ kind: 'consent', site: 'localhost' })
     expect(results.join('\n')).toContain('情報リテラシー')
-    // refused read: the model never sees the value, in any request
-    approve = false
-    const sent = stub.requests.length
+    // Tomo learns from tool.complete which site's personal data the answer used
+    expect(lastEvents.some((e) => e.kind === 'tool.complete' && e.personalSite === 'localhost')).toBe(true)
+    // later reads: no second question
     results = await run([{ tool: 'browser_navigate', args: { url: `${portal.altBase}/grades` } }, { tool: 'browser_console', args: { expression: read } }])
-    approve = true
-    expect(approvals.length).toBe(before + 2)
-    expect(results.join('\n')).toContain('did not allow')
-    for (const r of stub.requests.slice(sent)) expect(r.raw).not.toContain('情報リテラシー')
+    expect(approvals.length).toBe(before + 1)
+    expect(results.join('\n')).toContain('情報リテラシー')
   }, 300_000)
 
   it('keeps the profile (cookie) across an engine restart', async () => {

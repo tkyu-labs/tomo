@@ -120,6 +120,8 @@ export interface AppState {
   migration: MigrationState
   /** The school pack was removed: Tomo's general Hatch runs before the chat (first-run screen at the Hatch step). */
   hatchPending: boolean
+  /** Reading the pack's personal data (grades, …), decided once; null: the pack reads none. */
+  personalConsent: 'granted' | 'refused' | 'ask' | null
   /** Windows portable build: the secret store is protected by the student's password, entered at every start. */
   portable: { enabled: boolean; hasPassword: boolean; unlocked: boolean }
 }
@@ -154,7 +156,7 @@ export type ChatEvent =
   | { kind: 'delta'; text: string }
   | { kind: 'reasoning'; text: string }
   | { kind: 'tool.start'; toolId: string; name: string; args?: Record<string, unknown> | null }
-  | { kind: 'tool.complete'; toolId: string; name: string; summary?: string | null; durationS?: number | null }
+  | { kind: 'tool.complete'; toolId: string; name: string; summary?: string | null; durationS?: number | null; personalSite?: string }
   | { kind: 'complete'; text: string; status?: string | null; error?: string | null }
   | { kind: 'error'; message: string }
   | { kind: 'title'; title: string }
@@ -245,6 +247,8 @@ export interface TomoApi {
   onMigration(cb: (m: MigrationState) => void): () => void
   /** Remove the school pack and what came from it (skills, its answers and identifiers); chats stay. */
   removePack(): Promise<void>
+  /** Settings: may Tomo read personal data (grades, …) on the school's portal? */
+  setPersonalConsent(allowed: boolean): Promise<void>
   checkPackUpdate(): Promise<void>
   installPackUpdate(): Promise<void>
   setPackUpdateMode(mode: PackUpdateMode): Promise<void>
@@ -306,6 +310,7 @@ export const IPC = {
   changePortablePassword: 'tomo:portable-change-password',
   resetPortable: 'tomo:portable-reset',
   removePack: 'tomo:remove-pack',
+  setPersonalConsent: 'tomo:set-personal-consent',
   runMigration: 'tomo:run-migration',
   dismissMigration: 'tomo:dismiss-migration',
   migrationEvent: 'tomo:migration-event',

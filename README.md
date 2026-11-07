@@ -1,7 +1,7 @@
 # Tomo（伴）
 
 A desktop companion for international students in Japan. Tomo answers questions about courses, school rules and
-procedures, helps with Japanese, and can operate the browser after the student approves each step. It runs on
+procedures, helps with Japanese, and can use the school's sites in a browser window the student can see. It runs on
 Windows and macOS and speaks Japanese, Chinese and English.
 
 Tomo is school-agnostic; a school **pack** from [tomo-packs](https://github.com/tkyu-labs/tomo-packs) adds one
@@ -12,7 +12,8 @@ used unmodified at a pinned release (`scripts/hermes-pin.env`) and driven over s
 
 - Identifiers (name, student number) are replaced by `{{PLACEHOLDERS}}` before anything reaches the engine or a
   model, and shown as real values only on screen.
-- Other personal data (grades, self-checks) is sent only after the student approves each item.
+- Other personal data (grades, self-checks) is read only if the student allows it: decided once (in the first-run
+  questions or the first time it is needed) and changeable in Settings; each answer that used it says so.
 - API keys are kept in the operating system's encrypted storage and never written to the engine's files.
 - Tomo never stores or types portal passwords; the student signs in in Tomo's own browser window.
 

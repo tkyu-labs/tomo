@@ -21,7 +21,7 @@ import { SecretStore, type Encryptor } from '../secrets/store'
 import type { PortableKey } from '../secrets/portable'
 import { evacuateDotenv } from '../setup/home'
 import { listModels, setModel, setReasoning } from '../setup/model'
-import { privatePayload, refreshProfile, writeAnswerMode, writeConfig, writeProfile } from '../setup/profile'
+import { personalConsent, privatePayload, refreshProfile, writeAnswerMode, writeConfig, writeProfile } from '../setup/profile'
 import { PROVIDER_KEY_ENV, providerConfig } from '../setup/providers'
 import { SettingsFile, type Settings } from './settings'
 import { StudyLog } from './study-log'
@@ -71,7 +71,7 @@ export interface ControllerOptions {
   packUpdates?: Pick<PackUpdaterOptions, 'remote' | 'stage'>
 }
 
-type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void }
+type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; consent?: boolean }
 
 /**
  * Everything the window needs, independent of Electron (so it is testable): settings, secrets, the pack, the
@@ -152,6 +152,7 @@ export class AppController {
       answerMode: s.answerMode,
       packUpdate: { ...this.packUpdater.state, mode: s.packUpdateMode ?? 'auto' },
       hatchPending: !!s.hatchPending,
+      personalConsent: pack?.manifest.permissions.personal_origins?.length ? personalConsent(pack, s.answers, s.personalConsent) : null,
       migration: this.migration,
       portable: this.opts.portableKey ? { enabled: true, hasPassword: this.opts.portableKey.hasPassword(), unlocked: this.opts.portableKey.unlocked() } : { enabled: false, hasPassword: false, unlocked: true },
     }
@@ -439,7 +440,7 @@ export class AppController {
     const s = this.settings.read()
     if (!s.packId) return
     rmSync(join(this.opts.paths.data, 'packs', s.packId), { recursive: true, force: true })
-    this.settings.update((st) => { st.packId = undefined; st.answers = {}; st.hatchPending = true })
+    this.settings.update((st) => { st.packId = undefined; st.answers = {}; st.hatchPending = true; st.personalConsent = undefined })
     this.secrets.update((d) => { d.identifiers = [] })
     this.masker = new Masker([])
     this.packUpdater.state = { checking: false }
@@ -525,7 +526,7 @@ export class AppController {
       runtimeDir: this.runtimeDir(),
       cacheDir: join(this.opts.paths.data, 'cache'),
       keys: secrets.keys,
-      privatePayload: privatePayload(secrets.identifiers, pack, this.settings.read().answers),
+      privatePayload: privatePayload(secrets.identifiers, pack, this.settings.read().answers, this.settings.read().personalConsent),
       browser: { executablePath: browsers[0]?.path, profileDir: this.opts.paths.browserProfile },
       folders: { downloads: join(this.opts.paths.data, 'downloads'), documents: this.opts.documentsDir ?? join(this.opts.paths.data, 'documents') },
     })
@@ -595,8 +596,10 @@ export class AppController {
     const p = this.masker.maskAny((params ?? {}) as Record<string, unknown>)
     if (method === 'approval' || method === 'clarify') {
       const id = `req-${++this.requestSeq}`
+      // tomo-privacy's one-time question about reading personal data: the answer is remembered (respond)
+      const consent = method === 'approval' && /"kind":\s*"consent"/.test(String(p.description ?? ''))
       return new Promise((resolve, reject) => {
-        this.pendingRequests.set(id, { resolve, reject })
+        this.pendingRequests.set(id, { resolve, reject, consent })
         this.opts.emit.request({ id, method, sessionId: p.session_id as string | undefined, params: p })
       })
     }
@@ -609,7 +612,17 @@ export class AppController {
     const p = this.pendingRequests.get(id)
     if (!p) return
     this.pendingRequests.delete(id)
+    if (p.consent) {
+      const allowed = (result as { choice?: string } | null)?.choice !== 'deny'
+      this.settings.update((s) => { s.personalConsent = allowed ? 'granted' : 'refused' })
+    }
     p.resolve(result)
+  }
+
+  /** Settings: change the one-time decision about reading personal data (the engine restarts to apply it). */
+  async setPersonalConsent(allowed: boolean): Promise<void> {
+    this.settings.update((s) => { s.personalConsent = allowed ? 'granted' : 'refused' })
+    if (this.hermes) await this.startEngine(true)
   }
 
   // ------------------------------------------------------------------ chat

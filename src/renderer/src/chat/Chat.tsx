@@ -11,7 +11,7 @@ import { providerLabel } from '../setup/ProviderSheet'
 export interface ToolStep { id: string; name: string; done: boolean; seconds?: number | null }
 export type Msg =
   | { role: 'user'; text: string }
-  | { role: 'assistant'; text: string; tools: ToolStep[]; streaming: boolean; cards?: CardData[]; fallback?: { provider: ProviderId; model: string; from: ProviderId } }
+  | { role: 'assistant'; text: string; tools: ToolStep[]; streaming: boolean; cards?: CardData[]; fallback?: { provider: ProviderId; model: string; from: ProviderId }; personalSites?: string[] }
   | { role: 'error'; text: string }
   | { role: 'stopped' }
 
@@ -47,6 +47,7 @@ export function applyEvent(s: ChatSession, e: ChatEvent, unmasker: StreamUnmaske
     case 'tool.complete': {
       const m = ensure()
       m.tools = m.tools.map((t) => (t.id === e.toolId ? { ...t, done: true, seconds: e.durationS } : t))
+      if (e.personalSite && !m.personalSites?.includes(e.personalSite)) m.personalSites = [...(m.personalSites ?? []), e.personalSite]
       break
     }
     case 'complete': {
@@ -170,6 +171,12 @@ export function Chat({ session, topicId, pack, values, onSend, onStop, modelLabe
                 )}
                 {m.text ? <div className="answer-body" data-testid="answer-text"><Markdown text={m.text} /></div> : m.streaming && !m.cards?.length ? <p className="working-text">{c('Thinking…', '思考中…', '考えています…')}</p> : null}
                 {m.cards?.map((card, j) => <Card key={j} card={card} values={values} />)}
+                {m.personalSites?.length ? (
+                  <p className="answer-fallback" data-testid="personal-used">
+                    <Icon name="lock" size={12} />
+                    {c(`Used your records from ${m.personalSites.join(', ')}`, `用到了你在 ${m.personalSites.join('、')} 上的记录`, `${m.personalSites.join('、')} のあなたの記録を使いました`)}
+                  </p>
+                ) : null}
                 {m.fallback && (
                   <p className="answer-fallback" data-testid="fallback-mark">
                     <Icon name="info" size={12} />

@@ -7,17 +7,18 @@ loads so no child process can inherit it.
 
 Filling a value into a page (e.g. the student number into a form) works by placeholder: the model calls
 `browser_type(ref, "{{STUDENT_NUMBER}}")`; the `tool_execution` middleware checks the tool and the page's origin
-against the allow-list, asks the student through Hermes' approval gate (an `approval` request to Tomo), and only
-then substitutes the real value; the result is masked again. Passwords are never handled.
+against the allow-list (the school's own pages; trusted, so no question), and only then substitutes the real value;
+the result is masked again. Passwords are never handled.
 
 Personal data (grades, GPA, self-check, timetable) lives on the pack's `personal_origins` (e.g. the CampusSquare
 portal). Reading it is gated here too, so it never depends on the model asking first:
 - page snapshots from those sites (browser_navigate's auto-snapshot, browser_snapshot) keep only headings and
   controls (what the model needs to sign in, set filters and press buttons), never the data on the page;
-- values are read with browser_console extractions; each result is held until the student approves sending it
-  (an `approval` request whose description carries a preview), and a refusal reaches the model as a notice;
-- screenshots (browser_vision) and raw DevTools (browser_cdp) are refused there: their content cannot be previewed;
-- when the student's setup answer refuses grade reading (pack `personal_consent`), nothing is read at all.
+- values are read with browser_console extractions. The student decides once (students are not IT people: no
+  approval per item): in the Hatch (pack `personal_consent`), or, when that was never asked, the first time a value
+  is read (an `approval` request of kind "consent"; Tomo remembers the answer). Allowed: results pass and carry a
+  marker so Tomo can say in the chat which site's data was used. Refused: nothing is read at all;
+- screenshots (browser_vision) and raw DevTools (browser_cdp) are refused there: the content is not readable text.
 """
 
 from __future__ import annotations
@@ -51,7 +52,8 @@ OPAQUE_TOOLS = {"browser_vision", "browser_cdp"}
 _CONTROL_ROLES = ("heading", "columnheader", "rowheader", "button", "link", "textbox", "searchbox", "combobox",
                   "listbox", "option", "checkbox", "radio", "tab", "menuitem", "spinbutton", "switch", "form",
                   "navigation")
-PREVIEW_LIMIT = 4000
+# Marks a tool result that carries personal data (Tomo shows "used your data from <site>" under the answer).
+PERSONAL_MARK = f"{MARK} personal data read on "
 
 
 def structure_only(snapshot: str) -> str:
@@ -74,7 +76,9 @@ class Policy:
         self.labels: dict[str, str] = {i["name"]: i.get("label") or i["name"] for i in payload.get("identifiers", [])}
         personal = payload.get("personal") or {}
         self.personal_origins: list[str] = [o.lower() for o in personal.get("origins") or []]
-        self.personal_refused: bool = bool(personal.get("refused"))
+        # "granted" / "refused" (decided once, in the Hatch or the first time), "ask": not decided yet
+        consent = personal.get("consent") or ("refused" if personal.get("refused") else "ask")
+        self.personal_consent: str = consent if consent in ("granted", "refused", "ask") else "ask"
 
     @staticmethod
     def _host_in(url: str | None, origins: list[str]) -> bool:
@@ -132,8 +136,8 @@ def build(policy: Policy, ctx: Any = None, approve_fn=None) -> dict[str, Any]:
     def page_url(task_id: str | None) -> str | None:
         return _current_url(ctx, task_id) if ctx is not None else None
 
-    refused_note = (f"{MARK} The student chose in Tomo's setup that Tomo may not read their grades or other personal "
-                    "data. Do not read this page; tell the student where the information is and let them look.")
+    refused_note = (f"{MARK} The student chose that Tomo may not read their grades or other personal data. Do not "
+                    "read this page; tell the student where the information is and let them look.")
 
     def personal_snapshot(tool_name: str, args: Any, next_call, task_id: str | None):
         """navigate / snapshot: on a personal site, pass only headings and controls."""
@@ -147,41 +151,38 @@ def build(policy: Policy, ctx: Any = None, approve_fn=None) -> dict[str, Any]:
         url = data.get("url") if tool_name == "browser_navigate" else page_url(task_id)
         if not policy.personal(url) or not isinstance(data.get("snapshot"), str):
             return masker.mask_any(raw)
-        if policy.personal_refused:
+        if policy.personal_consent == "refused":
             data["snapshot"] = ""
             data["tomo_privacy"] = refused_note
         else:
             data["snapshot"] = structure_only(data["snapshot"])
             data["tomo_privacy"] = (f"{MARK} This page holds the student's personal data: the snapshot shows only "
                                     "headings and controls. Read the values the question needs with browser_console "
-                                    "(the pack skill's extraction); Tomo shows the student what would be sent and asks "
-                                    "first. Do not ask for permission yourself.")
+                                    "(the pack skill's extraction). Do not ask for permission yourself; Tomo handles it.")
         return masker.mask_any(json.dumps(data, ensure_ascii=False))
 
     def personal_read(tool_name: str, args: Any, next_call, task_id: str | None):
-        """console / images: on a personal site, the result waits for the student's approval."""
+        """console / images: on a personal site, read only with the student's one-time consent."""
         url = page_url(task_id)
         if not policy.personal(url):
             return masker.mask_any(next_call(args))
-        if policy.personal_refused:
+        host = (urlsplit(url or "").hostname or "")
+        if policy.personal_consent == "ask":
+            # once: Tomo stores the answer, so the next engine start knows it too
+            approved, _why = ask(tool_name, f"{MARK} " + json.dumps({"kind": "consent", "site": host}, ensure_ascii=False))
+            policy.personal_consent = "granted" if approved else "refused"
+        if policy.personal_consent == "refused":
             return json.dumps({"error": refused_note})
         result = masker.mask_any(next_call(args))
+        # the marker tells Tomo (tool.complete) which site's personal data this answer used
         text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
-        try:  # show the value itself, not the tool's JSON envelope
+        try:
             data = json.loads(text)
-            shown = data.get("result", data) if isinstance(data, dict) else data
-            if isinstance(shown, dict) and "value" in shown:
-                shown = shown["value"]
-            preview = shown if isinstance(shown, str) else json.dumps(shown, ensure_ascii=False, indent=1)
         except (TypeError, ValueError):
-            preview = text
-        if len(preview) > PREVIEW_LIMIT:
-            preview = preview[:PREVIEW_LIMIT] + " …"
-        host = (urlsplit(url or "").hostname or "")
-        approved, _why = ask(tool_name, f"{MARK} " + json.dumps({"kind": "send", "site": host, "preview": preview}, ensure_ascii=False))
-        if not approved:
-            return json.dumps({"error": f"{MARK} The student did not allow sending this to the AI model. Answer without "
-                                        "it (say what you could not check) and do not ask again in this turn."})
+            return result
+        if isinstance(data, dict):
+            data["tomo_privacy"] = f"{PERSONAL_MARK}{host}"
+            return json.dumps(data, ensure_ascii=False)
         return result
 
     def tool_execution(tool_name: str = "", args: Any = None, next_call=None, task_id: str | None = None, **_: Any):
@@ -204,9 +205,7 @@ def build(policy: Policy, ctx: Any = None, approve_fn=None) -> dict[str, Any]:
         ok, where = target_allowed(tool_name, task_id)
         if not ok:
             return json.dumps({"error": f"{MARK} {what} may only be filled in on the school's own pages; {where} is not one of them."})
-        approved, why = ask(tool_name, f"{MARK} Fill your {what} into {where}?")
-        if not approved:
-            return json.dumps({"error": f"{MARK} The student did not approve filling in their {what}. {why}".strip()})
+        # the school's own pages are trusted: filled in without a question (the model still only sees the placeholder)
         return masker.mask_any(next_call(masker.substitute(args)))
 
     def transform_tool_result(result: Any = None, **_: Any):

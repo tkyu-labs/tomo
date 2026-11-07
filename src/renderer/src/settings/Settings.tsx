@@ -83,6 +83,17 @@ export function Settings({ state, refresh, onPrefs, packReview, onPackReview }: 
 
         <section className="settings-section">
           <h2>{c('Privacy & data', '隐私与数据', 'プライバシーとデータ')}</h2>
+          {state.personalConsent && (
+            <div className="setting-row" data-testid="personal-consent">
+              <div><strong>{c('Read my grades and records', '读取我的成绩和记录', '成績と記録の読み取り')}</strong><span>{c("On your school's portal, in the browser window you can see, when a question needs them. Names and student numbers stay placeholders.", '在需要时，于你看得见的浏览器窗口里读取学校门户上的内容。姓名和学号始终是占位符。', '質問に必要なときだけ、見えるブラウザで学校のポータルを読みます。氏名と学籍番号はプレースホルダーのままです。')}</span></div>
+              <select className="setting-value setting-select" data-testid="personal-consent-select" disabled={!!busy} value={state.personalConsent}
+                onChange={(e) => void run('consent', () => window.tomo.setPersonalConsent(e.target.value === 'granted'), c('Saved', '已保存', '保存しました'))}>
+                {state.personalConsent === 'ask' && <option value="ask">{c('Ask me the first time', '第一次需要时问我', '最初に必要なときに確認')}</option>}
+                <option value="granted">{c('Allowed', '允许', '許可')}</option>
+                <option value="refused">{c('Not allowed', '不允许', '許可しない')}</option>
+              </select>
+            </div>
+          )}
           <div className="setting-row">
             <div><strong>{c('Export your data', '导出数据', 'データを書き出す')}</strong><span>{c('Settings, what Tomo remembers and your chat list. Keys and identifiers are not included.', '设置、Tomo 记住的内容和对话列表。不含 Key 和身份信息。', '設定、Tomo の記憶、チャット一覧。キーと識別子は含みません。')}</span></div>
             <button className="secondary" disabled={!!busy} onClick={() => void run('export', async () => { const p = await window.tomo.exportData(); if (p) setNotice(c(`Saved to ${p}`, `已保存到 ${p}`, `${p} に保存しました`)) })}>{c('Export…', '导出…', '書き出す…')}</button>

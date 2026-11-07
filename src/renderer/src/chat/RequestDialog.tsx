@@ -1,4 +1,4 @@
-// Questions from the engine: approvals (incl. tomo-privacy fills and personal-data reads) and clarify.
+// Questions from the engine: approvals (incl. tomo-privacy's one-time personal-data question) and clarify.
 import { useState } from 'react'
 import type { EngineRequest } from '@shared/ipc'
 import { yesNoChoices } from '@shared/clarify'
@@ -17,8 +17,8 @@ export function RequestDialog({ request, values, onDone }: { request: EngineRequ
   if (request.method === 'clarify') return <ClarifyDialog request={request} onAnswer={answer} />
   const description = String(request.params.description ?? '')
   const privacy = description.includes(PRIVACY)
-  const send = privacy ? parseSend(description.replace(PRIVACY, '').trim()) : null
-  if (send) return <SendDialog send={send} onAnswer={answer} />
+  const consent = privacy ? parseConsent(description.replace(PRIVACY, '').trim()) : null
+  if (consent) return <ConsentDialog consent={consent} onAnswer={answer} />
   const text = unmask(description.replace(PRIVACY, '').trim(), values)
   const tool = String(request.params.tool_name ?? '')
   return (
@@ -55,42 +55,47 @@ export function RequestDialog({ request, values, onDone }: { request: EngineRequ
   )
 }
 
-type SendRequest = { kind: 'send'; site: string; preview: string }
+type ConsentRequest = { kind: 'consent'; site: string }
 
-function parseSend(text: string): SendRequest | null {
+function parseConsent(text: string): ConsentRequest | null {
   try {
-    const v = JSON.parse(text) as Partial<SendRequest>
-    return v.kind === 'send' && typeof v.preview === 'string' ? { kind: 'send', site: String(v.site ?? ''), preview: v.preview } : null
+    const v = JSON.parse(text) as Partial<ConsentRequest>
+    return v.kind === 'consent' ? { kind: 'consent', site: String(v.site ?? '') } : null
   } catch {
     return null
   }
 }
 
-/** tomo-privacy holds a value read on a personal-data site until the student decides whether the AI model may see it. */
-function SendDialog({ send, onAnswer }: { send: SendRequest; onAnswer: (r: unknown) => Promise<void> }) {
+/**
+ * tomo-privacy asks once whether Tomo may read personal data (grades, …) on the school's portal, when the Hatch never
+ * asked. The answer is remembered (Settings → Privacy changes it); there is no question per item.
+ */
+function ConsentDialog({ consent, onAnswer }: { consent: ConsentRequest; onAnswer: (r: unknown) => Promise<void> }) {
   const c = useCopy()
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal approval-modal" role="alertdialog" aria-modal="true" aria-labelledby="send-title" data-testid="approval-dialog" data-kind="send">
+      <div className="modal approval-modal" role="alertdialog" aria-modal="true" aria-labelledby="consent-title" data-testid="approval-dialog" data-kind="consent">
         <div className="action-head">
           <div className="action-icon"><Icon name="lock" size={18} /></div>
           <div>
             <span className="eyebrow">{c('Personal data', '个人数据', '個人データ')}</span>
-            <h3 id="send-title">{c('Send this to the AI model?', '把这些内容发送给 AI 模型吗？', 'この内容を AI モデルに送りますか？')}</h3>
+            <h3 id="consent-title">{c('May Tomo read your grades and other records?', 'Tomo 可以读取你的成绩等记录吗？', '成績などの記録を Tomo が読んでもよいですか？')}</h3>
           </div>
         </div>
-        <p className="modal-intro">{c(`Tomo read this on ${send.site}. The AI model sees it only if you choose Send.`, `Tomo 在 ${send.site} 上读取了以下内容。只有你选择「发送」后，AI 模型才能看到。`, `Tomo が ${send.site} で読み取った内容です。「送る」を選んだときだけ AI モデルに届きます。`)}</p>
-        {/* exactly what would be sent: identifiers stay as their placeholders */}
-        <pre className="send-preview" data-testid="send-preview">{send.preview}</pre>
+        <p className="modal-intro">{c(
+          `To answer, Tomo reads them on ${consent.site} in the browser window you can see. Tomo asks only this once; you can change it in Settings → Privacy.`,
+          `为了回答你的问题，Tomo 会在你看得见的浏览器窗口里读取 ${consent.site} 上的内容。只问这一次，之后可以在设置 → 隐私里修改。`,
+          `回答のために、見えるブラウザで ${consent.site} の内容を読みます。確認はこの一度だけで、設定 → プライバシーでいつでも変更できます。`,
+        )}</p>
         <div className="action-note">
           <Icon name="shield" size={16} />
-          {c('This is exactly what would be sent. Your name and student number appear only as {{…}} placeholders.', '以上就是会发送的全部内容。你的姓名和学号只会以 {{…}} 占位形式出现。', '送られる内容はこれですべてです。氏名と学籍番号は {{…}} の形でしか含まれません。')}
+          {c('Your name and student number are always replaced by placeholders before anything reaches the AI.', '你的姓名和学号在交给 AI 之前一律会被替换成占位符。', '氏名と学籍番号は、AI に届く前に必ずプレースホルダーに置き換えられます。')}
         </div>
         <div className="modal-actions approval-actions">
-          <button className="secondary" data-testid="approval-deny" onClick={() => void onAnswer({ choice: 'deny' })}>{c("Don't send", '不发送', '送らない')}</button>
+          <button className="secondary" data-testid="approval-deny" onClick={() => void onAnswer({ choice: 'deny' })}>{c("Don't allow", '不允许', '許可しない')}</button>
           <button className="primary" data-testid="approval-allow" onClick={() => void onAnswer({ choice: 'once' })}>
             <Icon name="check" size={15} />
-            {c('Send to AI', '发送给 AI', 'AI に送る')}
+            {c('Allow', '允许', '許可する')}
           </button>
         </div>
       </div>

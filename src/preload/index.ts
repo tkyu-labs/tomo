@@ -45,6 +45,7 @@ const api: TomoApi = {
   changePortablePassword: invoke(IPC.changePortablePassword) as TomoApi['changePortablePassword'],
   resetPortable: invoke(IPC.resetPortable) as TomoApi['resetPortable'],
   removePack: invoke(IPC.removePack) as TomoApi['removePack'],
+  setPersonalConsent: invoke(IPC.setPersonalConsent) as TomoApi['setPersonalConsent'],
   runMigration: invoke(IPC.runMigration) as TomoApi['runMigration'],
   dismissMigration: invoke(IPC.dismissMigration) as TomoApi['dismissMigration'],
   onMigration: (cb) => listen(IPC.migrationEvent, cb),

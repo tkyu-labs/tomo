@@ -43,8 +43,10 @@ renderer (React)  ⇄  preload (window.tomo, typed IPC)  ⇄  main (Node)  ⇄  
   `prompt.submit` (Hermes stores raw prompts and auxiliary calls bypass request hooks) and in every event coming
   back (`HermesClient`, `Masker`). Only the renderer turns placeholders back into values, for display.
 - Values are filled into tools only by the `tomo-privacy` plugin (`tool_execution` middleware), only on origins the
-  pack allows. Personal-data sites (`personal_origins` in a pack) show the model page structure only; values read
-  there reach the model after the student approves them.
+  pack allows (the school's own pages: no question). Personal-data sites (`personal_origins` in a pack) show the
+  model page structure only; values read there reach the model only if the student allowed it — decided **once**
+  (Hatch `personal_consent`, else asked the first time and remembered; Settings → Privacy changes it), never per
+  item.
 - **Keys** live in the OS-encrypted store (`src/main/secrets/store.ts`, Keychain / DPAPI) and reach Hermes as
   process environment variables only. Never write a key to `HERMES_HOME/.env` or any file; never log one.
 - **No portal passwords**, ever: the student signs in in Tomo's visible browser window.

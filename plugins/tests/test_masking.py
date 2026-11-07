@@ -45,11 +45,11 @@ def test_mask_any_and_substitute():
     assert M.placeholders_in(["{{FULL_NAME}}", {"a": "{{STUDENT_NUMBER}}"}]) == {"FULL_NAME", "STUDENT_NUMBER"}
 
 
-def test_fill_needs_allowed_tool_origin_and_approval():
+def test_fill_needs_an_allowed_tool_and_origin():
     asked = []
     cb = tomo_privacy.build(tomo_privacy.Policy(PAYLOAD), approve_fn=lambda t, m: (asked.append(m) or True, ""))
     seen = {}
-    # not a fill tool: placeholder passes through untouched, nobody is asked
+    # not a fill tool: placeholder passes through untouched
     cb["tool_execution"](tool_name="terminal", args={"command": "echo {{STUDENT_NUMBER}}"},
                          next_call=lambda a: seen.setdefault("t", a) and "ok")
     assert seen["t"]["command"] == "echo {{STUDENT_NUMBER}}" and asked == []
@@ -59,7 +59,7 @@ def test_fill_needs_allowed_tool_origin_and_approval():
     assert "may only be filled in" in out and asked == []
 
 
-def test_wildcard_fill_substitutes_after_approval_and_remasks():
+def test_fill_on_an_allowed_origin_substitutes_without_a_question_and_remasks():
     payload = {**PAYLOAD, "fill": {"tools": ["write_file"], "origins": ["*"]}}
     asked = []
     cb = tomo_privacy.build(tomo_privacy.Policy(payload), approve_fn=lambda t, m: (asked.append(m) or True, ""))
@@ -72,15 +72,7 @@ def test_wildcard_fill_substitutes_after_approval_and_remasks():
     out = cb["tool_execution"](tool_name="write_file", args={"content": "{{STUDENT_NUMBER}}"}, next_call=run)
     assert out == '{"written": "{{STUDENT_NUMBER}}"}'
     assert seen["args"]["content"] == "23B0001"
-    assert "student number" in asked[0]
-
-
-def test_denied_fill_does_not_run():
-    payload = {**PAYLOAD, "fill": {"tools": ["write_file"], "origins": ["*"]}}
-    cb = tomo_privacy.build(tomo_privacy.Policy(payload), approve_fn=lambda t, m: (False, "denied"))
-    out = cb["tool_execution"](tool_name="write_file", args={"content": "{{STUDENT_NUMBER}}"},
-                               next_call=lambda a: pytest.fail("must not run"))
-    assert "did not approve" in out
+    assert asked == []  # the school's own pages are trusted
 
 
 def test_llm_request_safety_net():

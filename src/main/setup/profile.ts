@@ -61,17 +61,26 @@ export function refreshProfile(hermesHome: string, pluginsSourceDir: string, pac
   refreshTomoFiles(hermesHome, buildSoul({ pack, placeholderNames }), pluginsSourceDir, TOMO_PLUGINS)
 }
 
-/** TOMO_PRIVATE for the privacy plugin: identifier values plus where they may be filled in. */
-export function privatePayload(identifiers: IdentifierEntry[], pack?: LoadedPack, answers: Answers = {}): string {
-  const perm = pack?.manifest.permissions
-  const consent = perm?.personal_consent
+export type PersonalConsent = 'granted' | 'refused' | 'ask'
+
+/** Personal-data reading, decided once: a later decision (chat, Settings) wins, then the Hatch answer, else ask once. */
+export function personalConsent(pack: LoadedPack | undefined, answers: Answers, decided?: 'granted' | 'refused'): PersonalConsent {
+  if (decided) return decided
+  const consent = pack?.manifest.permissions.personal_consent
   const answer = consent ? answers[consent.question] : undefined
+  if (typeof answer !== 'string') return 'ask'
+  return consent!.refuse.includes(answer) ? 'refused' : 'granted'
+}
+
+/** TOMO_PRIVATE for the privacy plugin: identifier values plus where they may be filled in. */
+export function privatePayload(identifiers: IdentifierEntry[], pack?: LoadedPack, answers: Answers = {}, decided?: 'granted' | 'refused'): string {
+  const perm = pack?.manifest.permissions
   return JSON.stringify({
     version: 1,
     identifiers,
     fill: { tools: ['browser_type'], origins: perm?.browser_origins ?? [] },
-    // read by tomo-privacy: personal-data sites and whether the student refused reading them in Hatch
-    personal: { origins: perm?.personal_origins ?? [], refused: typeof answer === 'string' && !!consent?.refuse.includes(answer) },
+    // read by tomo-privacy: personal-data sites and the student's one-time decision about reading them
+    personal: { origins: perm?.personal_origins ?? [], consent: personalConsent(pack, answers, decided) },
   })
 }
 

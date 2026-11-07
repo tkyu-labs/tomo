@@ -1,6 +1,6 @@
 """tomo-privacy personal-data gate: on the pack's personal sites, snapshots carry only headings and controls, values
-read with browser_console wait for the student's approval, screenshots / raw CDP are refused, and a Hatch refusal
-blocks reading. Driven without Hermes: a fake ctx answers `location.href`, next_call returns canned tool output."""
+read with browser_console need the student's one-time consent (Hatch, or asked once), screenshots / raw CDP are
+refused, and a refusal blocks reading. Driven without Hermes: a fake ctx answers `location.href`, next_call returns canned tool output."""
 import json
 import os
 
@@ -29,11 +29,11 @@ SNAPSHOT = "\n".join([
 ])
 
 
-def payload(refused=False):
+def payload(consent="granted"):
     return {
         "identifiers": [{"name": "FULL_NAME", "values": ["Lin Mei"], "kind": "name", "label": "name"}],
         "fill": {"tools": ["browser_type"], "origins": ["portal.example-u.ac.jp"]},
-        "personal": {"origins": ["portal.example-u.ac.jp"], "refused": refused},
+        "personal": {"origins": ["portal.example-u.ac.jp"], "consent": consent},
     }
 
 
@@ -46,14 +46,14 @@ class Ctx:
         return json.dumps({"success": True, "result": self.url})
 
 
-def gate(url=PORTAL, refused=False, approve=True):
+def gate(url=PORTAL, consent="granted", approve=True):
     asked = []
 
     def approve_fn(tool, message):
         asked.append(message)
         return approve, ""
 
-    cb = tp.build(tp.Policy(payload(refused)), Ctx(url), approve_fn)
+    cb = tp.build(tp.Policy(payload(consent)), Ctx(url), approve_fn)
     return cb["tool_execution"], asked
 
 
@@ -83,21 +83,31 @@ def test_snapshot_tool_uses_the_real_page_url():
     assert "3.12" not in out["snapshot"]
 
 
-def test_console_read_waits_for_approval_and_shows_the_preview():
-    run, asked = gate(approve=True)
+def read(run, value="3.12"):
+    return run("browser_console", {"expression": "x"}, lambda a: json.dumps({"success": True, "result": value}, ensure_ascii=False))
+
+
+def test_console_read_with_consent_passes_without_a_question_and_is_marked():
+    run, asked = gate(consent="granted")
     value = json.dumps({"累積GPA": "3.12", "name": "Lin Mei"}, ensure_ascii=False)
-    out = run("browser_console", {"expression": "x"}, lambda a: json.dumps({"success": True, "result": value}, ensure_ascii=False))
-    assert "3.12" in out and "Lin Mei" not in out
+    out = read(run, value)
+    assert "3.12" in out and "Lin Mei" not in out and asked == []
+    assert json.loads(out)["tomo_privacy"] == tp.PERSONAL_MARK + "portal.example-u.ac.jp"
+
+
+def test_undecided_consent_is_asked_once_and_remembered():
+    run, asked = gate(consent="ask", approve=True)
+    assert "3.12" in read(run) and "3.12" in read(run)
     assert len(asked) == 1
     desc = json.loads(asked[0].replace(tp.MARK, "", 1))
-    assert desc["kind"] == "send" and desc["site"] == "portal.example-u.ac.jp"
-    assert "3.12" in desc["preview"] and "{{FULL_NAME}}" in desc["preview"] and "Lin Mei" not in desc["preview"]
+    assert desc == {"kind": "consent", "site": "portal.example-u.ac.jp"}
 
 
-def test_console_read_refused_by_the_student_never_returns_the_value():
-    run, asked = gate(approve=False)
-    out = run("browser_console", {"expression": "x"}, lambda a: json.dumps({"success": True, "result": "3.12"}))
-    assert "3.12" not in out and "did not allow" in out and len(asked) == 1
+def test_undecided_consent_declined_reads_nothing_and_is_not_asked_again():
+    run, asked = gate(consent="ask", approve=False)
+    out = read(run)
+    assert "3.12" not in out and "may not read" in out
+    assert "3.12" not in read(run) and len(asked) == 1
 
 
 def test_console_elsewhere_needs_no_approval():
@@ -107,7 +117,7 @@ def test_console_elsewhere_needs_no_approval():
 
 
 def test_hatch_refusal_reads_nothing():
-    run, asked = gate(refused=True)
+    run, asked = gate(consent="refused")
     ran = []
     out = run("browser_console", {"expression": "x"}, lambda a: ran.append(1) or json.dumps({"result": "3.12"}))
     assert ran == [] and "may not read" in out and asked == []

@@ -42,7 +42,7 @@ async function ask(allow: boolean) {
     env: buildHermesEnv({
       base: { ...process.env, HOME: join(dir, 'home') }, hermesHome: join(dir, 'hermes'), runtimeDir: devTools,
       cacheDir: join(repoRoot, '.dev', 'cache'), keys: { OPENAI_API_KEY: process.env.OPENAI_API_KEY! },
-      privatePayload: JSON.stringify({ identifiers, fill: { tools: ['browser_type'], origins: ['127.0.0.1'] }, personal: { origins: ['127.0.0.1'], refused: false } }),
+      privatePayload: JSON.stringify({ identifiers, fill: { tools: ['browser_type'], origins: ['127.0.0.1'] }, personal: { origins: ['127.0.0.1'], consent: 'ask' } }),
       browser: { executablePath: chrome!.path, profileDir: join(dir, 'browser-profile') },
     }),
     onServerRequest: async (method, params) => {
@@ -67,7 +67,7 @@ async function ask(allow: boolean) {
 }
 
 const sends = (r: { requests: { method: string; params: Record<string, unknown> }[] }) =>
-  r.requests.filter((q) => q.method === 'approval' && String(q.params.description ?? '').includes('"kind": "send"'))
+  r.requests.filter((q) => q.method === 'approval' && String(q.params.description ?? '').includes('"kind": "consent"'))
 
 describe.skipIf(!enabled)('real model on a personal-data site', () => {
   it('reads through Tomo\'s approval, never asks itself, and answers when allowed', async () => {

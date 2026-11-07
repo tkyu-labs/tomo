@@ -94,14 +94,13 @@ describe('tomo-privacy end to end', () => {
   })
   // Runs last: write_file (a stand-in for browser_type) stores an inline diff of what it wrote in its own display
   // metadata, which is expected for a file write and not part of the browser fill path.
-  it('fills a placeholder only after approval and re-masks the result', async () => {
+  it('fills a placeholder on an allowed origin without a question and re-masks the result', async () => {
     const client = new HermesClient(hermes)
     const { session_id } = await client.createSession()
     const target = join(home.dir, 'filled.txt')
     const events = await client.runTurn(session_id, `TOOL:write_file ARGS:${JSON.stringify({ path: target, content: 'ID: {{STUDENT_NUMBER}}' })}`)
     
-    expect(approvals.length).toBe(1)
-    expect(JSON.stringify(approvals[0])).toContain('[tomo-privacy]')
+    expect(approvals.length).toBe(0) // the school's own pages are trusted: no question
     expect(readFileSync(target, 'utf8')).toBe(`ID: ${NUMBER}`)
     expect(events.at(-1)?.kind).toBe('complete')
     // tool.start carries the effective (filled) args (tools/tool_executor.py state.args) — the main process masks

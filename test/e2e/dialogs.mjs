@@ -29,8 +29,8 @@ try {
   await app.waitFor(`document.querySelector('#root')?.childElementCount > 0`)
   await app.evaluate(`window.tomo.setPrefs({ locale: 'en' }).then(() => location.reload())`); await sleep(1200)
   await app.waitFor(`document.querySelector('#root')?.childElementCount > 0`)
-  await inject({ id: 'r1', method: 'approval', params: { tool_name: 'browser_console', description: '[tomo-privacy] ' + JSON.stringify({ kind: 'send', site: 'portal.example-u.ac.jp', preview: '{"累積GPA":"3.12","name":"{{FULL_NAME}}"}' }) } })
-  await sleep(400); report.send = await dialog(); await close(); await sleep(300)
+  await inject({ id: 'r1', method: 'approval', params: { tool_name: 'browser_console', description: '[tomo-privacy] ' + JSON.stringify({ kind: 'consent', site: 'portal.example-u.ac.jp' }) } })
+  await sleep(400); report.consent = await dialog(); await close(); await sleep(300)
   await inject({ id: 'r2', method: 'clarify', params: { questions: [{ qid: 'q0', question: 'Which term?', choices: ['This term', 'Last term'] }] } })
   await sleep(400); report.choices = await dialog(); await close(); await sleep(300)
   await inject({ id: 'r3', method: 'clarify', params: { questions: [{ qid: 'q0', question: 'CampusSquare で確認した累積GPAを、このチャットに表示してもよいですか？' }] } })
@@ -42,7 +42,7 @@ try {
   removeDir(data)
 }
 console.log(JSON.stringify(report, null, 2))
-const ok = report.send?.kind === 'send' && report.send.preview?.includes('{{FULL_NAME}}') && report.send.preview.includes('3.12') && report.send.buttons.join('|') === "Don't send|Send to AI"
+const ok = report.consent?.kind === 'consent' && report.consent.title?.includes('May Tomo read your grades') && report.consent.buttons.join('|') === "Don't allow|Allow"
   && report.choices?.choices.join('|') === 'This term|Last term' && report.choices.text
   && report.yesNo?.choices.join('|') === 'はい|いいえ' && report.yesNo.text
   && report.open?.choices.length === 0 && report.open.text

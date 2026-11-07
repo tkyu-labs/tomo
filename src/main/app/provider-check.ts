@@ -38,8 +38,8 @@ export async function listProviderModels(choice: Pick<ProviderChoice, 'id' | 'ba
   } catch (e) {
     return { ok: false, error: 'unreachable', detail: e instanceof Error ? e.message : String(e) }
   }
-  // a key whose balance or quota is used up is not a wrong key (GakuenAI: 403 INSUFFICIENT_BALANCE; OpenRouter 402;
-  // OpenAI 429 insufficient_quota): the student must top up, not paste the key again
+  // a valid key on an account without balance or quota is not a wrong key (GakuenAI: 403 INSUFFICIENT_BALANCE, also
+  // for a key that was never used; OpenRouter 402; OpenAI 429 insufficient_quota): pasting the key again cannot help
   if (res.status === 402 || ((res.status === 403 || res.status === 429) && NO_CREDIT.test(await res.clone().text().catch(() => '')))) return { ok: false, error: 'no-credit' }
   if (res.status === 401 || res.status === 403) return { ok: false, error: 'wrong-key' }
   if (!res.ok) return { ok: false, error: 'unreachable', detail: `HTTP ${res.status}` }

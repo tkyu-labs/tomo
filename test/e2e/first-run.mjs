@@ -86,7 +86,7 @@ try {
   report.testerWording = await app.evaluate(`/tester/i.test(document.body.innerText)`)
   // the GakuenAI "Test" button really asks the relay (here the stub): a key without balance says so, not "wrong key"
   await type('[data-testid=gakuen-key]', 'sk-empty'); await click('[data-testid=gakuen-test]')
-  report.gakuenNoCredit = await app.waitFor(`/no balance left/.test(document.querySelector('.hatch-note.error')?.textContent ?? '')`, 20000).then(() => true, () => false)
+  report.gakuenNoCredit = await app.waitFor(`/has no balance/.test(document.querySelector('.hatch-note.error')?.textContent ?? '')`, 20000).then(() => true, () => false)
   await type('[data-testid=gakuen-key]', '')
   await click('[data-testid=other-provider]'); await sleep(200)
   report.gakuenFirst = await app.evaluate(`document.querySelector('.provider-list input[type=radio]')?.dataset.testid === 'provider-gakuen'`)

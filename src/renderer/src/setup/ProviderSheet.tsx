@@ -161,7 +161,7 @@ export function ProviderSheet({ onClose, onConnect, gakuenAvailable }: {
                   {test.error === 'wrong-key'
                     ? c(`${NAMES[provider]} did not accept this key. Check that you copied all of it.`, `${NAMES[provider]} 不接受这个 Key，请确认是否完整复制。`, `${NAMES[provider]} がこのキーを受け付けませんでした。すべてコピーしたか確認してください。`)
                     : test.error === 'no-credit'
-                      ? c(`This ${NAMES[provider]} account has no balance or quota left. Top it up, then press Test again.`, `这个 ${NAMES[provider]} 账户的余额或额度已用完，充值后再点“测试”。`, `この ${NAMES[provider]} アカウントの残高または利用枠がありません。チャージしてから、もう一度「テスト」を押してください。`)
+                      ? c(`${NAMES[provider]} says this account has no balance or quota. Top it up (or ask whoever gave you the key), then press Test again.`, `${NAMES[provider]} 显示这个账户的余额或额度不足。充值（或联系提供 Key 的人）后再点“测试”。`, `${NAMES[provider]} によると、このアカウントには残高または利用枠がありません。チャージ（またはキーをくれた人に確認）してから、もう一度「テスト」を押してください。`)
                     : test.error === 'no-models'
                       ? c('The key works, but the provider listed no chat models.', 'Key 可用，但服务商没有返回可用的对话模型。', 'キーは有効ですが、利用できるチャットモデルがありません。')
                       : c('Cannot reach the provider. Check your network or the base URL.', '无法连接服务商，请检查网络或 Base URL。', '接続できません。ネットワークまたは Base URL を確認してください。')}

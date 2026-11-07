@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AppState, EngineRequest, Prefs, SessionRow, UpdateStatus } from '@shared/ipc'
+import type { AppState, EngineRequest, MigrationState, Prefs, SessionRow, UpdateStatus } from '@shared/ipc'
 import { pick } from '@shared/pack/types'
 import { StreamUnmasker } from '@shared/privacy/masker'
 import { applyEvent, Chat, type ChatSession } from './chat/Chat'
@@ -7,6 +7,7 @@ import { RequestDialog } from './chat/RequestDialog'
 import { htmlLang, LocaleContext, type Locale } from './i18n'
 import { Memory } from './settings/Memory'
 import { Settings } from './settings/Settings'
+import { MigrationScreen } from './setup/Migration'
 import { UnlockScreen } from './setup/Portable'
 import { Setup } from './setup/Setup'
 import { Sidebar, type View } from './Sidebar'
@@ -65,6 +66,18 @@ export function App() {
 
   useEffect(() => window.tomo.onEngineState(() => void refresh()), [refresh])
   useEffect(() => window.tomo.onPackUpdate(() => void refresh()), [refresh])
+  // the migration after an update: live progress; the chat opens when it is done
+  const [migration, setMigration] = useState<MigrationState | null>(null)
+  useEffect(() => window.tomo.onMigration((m) => {
+    // finished: show "Update finished" for a moment, then the chat
+    if (!m.active && m.tasks.start === 'done' && !m.error) {
+      setMigration({ ...m, active: true })
+      setTimeout(() => { setMigration(m); void refresh() }, 1200)
+    } else {
+      setMigration(m)
+      if (!m.active) void refresh()
+    }
+  }), [refresh])
   useEffect(() => window.tomo.onNavigate((page) => setView({ kind: page })), [])
   useEffect(() => window.tomo.onEngineRequest((r) => setRequests((q) => [...q, r])), [])
   useEffect(() => window.tomo.onChatEvent((sessionId, e) => {
@@ -147,7 +160,9 @@ export function App() {
   return (
     <LocaleContext.Provider value={{ locale, setLocale }}>
       <ScaleRoot scale={state.prefs.uiScale}>
-        {state.portable.enabled && state.portable.hasPassword && !state.portable.unlocked ? (
+        {(migration ?? state.migration).active ? (
+          <MigrationScreen m={migration ?? state.migration} />
+        ) : state.portable.enabled && state.portable.hasPassword && !state.portable.unlocked ? (
           <UnlockScreen onUnlocked={() => void refresh()} />
         ) : !state.setupDone || state.hatchPending ? (
           <Setup state={state} refresh={refresh} onDone={() => void refresh()} />

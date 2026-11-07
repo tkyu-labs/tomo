@@ -78,3 +78,4 @@ html[data-platform="darwin"] .hatch-brand > * { -webkit-app-region: no-drag; }
 .unlock-forgot { text-align: left; display: grid; gap: 8px; }
 .unlock-forgot p { margin: 2px 0 0; font-size: 12.5px; }
 .pack-one-note { margin: 0; padding: 0 0 4px; color: var(--text-muted); font-size: 12px; }
+.migration-progress { margin: 4px 0 14px; }

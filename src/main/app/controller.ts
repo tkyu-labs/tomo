@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { join } from 'node:path'
 import type {
   AppState, AnswerMode, ChatEvent, Connection, EngineProgress, EngineRequest, FallbackChoice, FinishTask, HistoryMessage, PackSummary, Prefs,
-  PackUpdateMode, PackUpdateState, ProviderChoice, ProviderId,
+  MigrationState, MigrationTask, PackUpdateMode, PackUpdateState, ProviderChoice, ProviderId,
   Reasoning, SessionRow, TaskUpdate,
 } from '@shared/ipc'
 import { identifiersFrom } from '@shared/pack/hatch'
@@ -63,6 +63,7 @@ export interface ControllerOptions {
     engineState(state: AppState['engine']['state']): void
     engineProgress?(p: EngineProgress): void
     packUpdate?(s: PackUpdateState): void
+    migration?(m: MigrationState): void
   }
   /** Windows portable build: the password-based key that is also `encryptor`. */
   portableKey?: PortableKey
@@ -151,6 +152,7 @@ export class AppController {
       answerMode: s.answerMode,
       packUpdate: { ...this.packUpdater.state, mode: s.packUpdateMode ?? 'auto' },
       hatchPending: !!s.hatchPending,
+      migration: this.migration,
       portable: this.opts.portableKey ? { enabled: true, hasPassword: this.opts.portableKey.hasPassword(), unlocked: this.opts.portableKey.unlocked() } : { enabled: false, hasPassword: false, unlocked: true },
     }
   }
@@ -253,6 +255,64 @@ export class AppController {
     await this.applyProviders()
   }
 
+  // ------------------------------------------------------------------ migration after an update
+  private migration: MigrationState = { active: false, tasks: { engine: 'pending', tools: 'pending', data: 'pending', start: 'pending' }, percent: 0 }
+  private migrating?: Promise<void>
+
+  /** Something to do on this start after an update: another engine, extras or tools (first installs are not this). */
+  migrationNeeded(): boolean {
+    return this.settings.read().setupDone && !!this.opts.engine?.needsMigration()
+  }
+
+  private setMigration(patch: Partial<MigrationState>, task?: [MigrationTask, MigrationState['tasks'][MigrationTask]]): void {
+    this.migration = { ...this.migration, ...patch, tasks: task ? { ...this.migration.tasks, [task[0]]: task[1] } : { ...this.migration.tasks, ...patch.tasks } }
+    this.opts.emit.migration?.(this.migration)
+  }
+
+  private onMigrationProgress(p: EngineProgress): void {
+    if (!this.migration.active || this.migration.error) return
+    if (p.stage === 'browser') this.setMigration({ percent: 100, tasks: { ...this.migration.tasks, engine: 'done', tools: 'running' } })
+    else if (p.stage !== 'done' && p.stage !== 'error') this.setMigration({ percent: p.percent }, ['engine', 'running'])
+  }
+
+  /** New engine (next to the old one), new tools, data format, start; the old engine is deleted only after the start. */
+  migrate(): Promise<void> {
+    this.migrating ??= this.doMigrate().finally(() => { this.migrating = undefined })
+    return this.migrating
+  }
+
+  private async doMigrate(): Promise<void> {
+    const engine = this.opts.engine!
+    const s = this.settings.read()
+    const app = this.opts.appVersion ? { from: s.lastAppVersion && s.lastAppVersion !== this.opts.appVersion ? s.lastAppVersion : undefined, to: this.opts.appVersion } : undefined
+    this.setMigration({ active: true, error: undefined, rolledBack: false, percent: 0, engine: engine.versions(), app, tasks: { engine: 'running', tools: 'pending', data: 'pending', start: 'pending' } })
+    let task: MigrationTask = 'engine'
+    try {
+      await this.prepareEngine()
+      this.setMigration({ percent: 100, tasks: { engine: 'done', tools: 'done', data: 'running', start: 'pending' } })
+      task = 'data'
+      // data format changes go here (none yet); settings are read with defaults, so older files keep working
+      this.setMigration({}, ['data', 'done'])
+      task = 'start'
+      this.setMigration({}, ['start', 'running'])
+      await this.startEngine(true)
+      engine.commit()
+      this.settings.update((st) => { st.lastAppVersion = this.opts.appVersion })
+      this.setMigration({ active: false }, ['start', 'done'])
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      // the new engine did not work: back to the previous one, so Tomo stays usable while the student retries
+      const rolledBack = engine.rollback()
+      if (rolledBack) await this.startEngine(true).catch(() => undefined)
+      this.setMigration({ error: message, rolledBack }, [task, 'error'])
+    }
+  }
+
+  /** "Use Tomo anyway" after a rollback: close the screen (the next start offers the migration again). */
+  dismissMigration(): void {
+    if (this.migration.rolledBack) this.setMigration({ active: false })
+  }
+
   // ------------------------------------------------------------------ Windows portable (password instead of DPAPI)
   private get portableKey(): PortableKey {
     if (!this.opts.portableKey) throw new Error('Not the portable build.')
@@ -267,7 +327,8 @@ export class AppController {
   /** Every start: unlock, then start the engine (it needs the keys). */
   async unlockPortable(password: string): Promise<boolean> {
     if (!this.portableKey.unlock(password)) return false
-    if (this.settings.read().setupDone) await this.startEngine().catch(() => undefined)
+    if (this.migrationNeeded()) void this.migrate()
+    else if (this.settings.read().setupDone) await this.startEngine().catch(() => undefined)
     return true
   }
 
@@ -410,7 +471,7 @@ export class AppController {
   /** Downloads and installs Hermes on first start (no-op when installed or when a fixed engine is used). */
   async prepareEngine(): Promise<HermesRuntime> {
     if (!this.opts.engine) return this.runtime()
-    return this.opts.engine.prepare((p) => this.opts.emit.engineProgress?.(p))
+    return this.opts.engine.prepare((p) => { this.opts.emit.engineProgress?.(p); this.onMigrationProgress(p) })
   }
 
   private runtimeDir(): string {
@@ -433,6 +494,7 @@ export class AppController {
   }
 
   async startEngine(restart = false): Promise<void> {
+    this.opts.engine?.cleanupStale() // old engine folders a previous switch could not delete
     const moved = evacuateDotenv(this.opts.paths.hermesHome)
     if (Object.keys(moved).length) this.secrets.update((d) => { Object.assign(d.keys, moved) })
     const secrets = this.secrets.read()

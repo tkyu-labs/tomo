@@ -84,6 +84,7 @@ const controller = new AppController({
     engineState: (s) => send(IPC.engineState, s),
     engineProgress: (p) => send(IPC.engineProgress, p),
     packUpdate: (s) => send(IPC.packUpdateEvent, s),
+    migration: (m) => send(IPC.migrationEvent, m),
   },
 })
 
@@ -234,6 +235,8 @@ handle(IPC.unlockPortable, (pw: string) => controller.unlockPortable(pw))
 handle(IPC.changePortablePassword, (cur: string, next: string) => controller.changePortablePassword(cur, next))
 handle(IPC.resetPortable, () => controller.resetPortable())
 handle(IPC.removePack, () => controller.removePack())
+handle(IPC.runMigration, () => controller.migrate())
+handle(IPC.dismissMigration, () => controller.dismissMigration())
 handle(IPC.checkPackUpdate, () => controller.packUpdater.check())
 handle(IPC.installPackUpdate, () => controller.packUpdater.install())
 handle(IPC.setPackUpdateMode, (m: PackUpdateMode) => controller.setPackUpdateMode(m))
@@ -287,7 +290,11 @@ app.whenReady().then(async () => {
   win = createWindow()
   tray.create()
   // portable: the engine needs the keys, so it starts after the student unlocks (IPC.unlockPortable)
-  if (controller.getState().setupDone && (!portableKey || portableKey.unlocked())) await controller.startEngine().catch(() => undefined)
+  // after an update that needs it, the migration screen updates the engine first (it starts the engine itself)
+  if (!portableKey || portableKey.unlocked()) {
+    if (controller.migrationNeeded()) void controller.migrate()
+    else if (controller.getState().setupDone) { await controller.startEngine().catch(() => undefined); controller.settings.update((s) => { s.lastAppVersion = app.getVersion() }) }
+  }
   // macOS: clicking the Dock icon brings the hidden window back
   app.on('activate', () => showWindow())
 })

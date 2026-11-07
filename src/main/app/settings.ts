@@ -24,6 +24,8 @@ export interface Settings {
   gakuenUrl?: string
   /** The school pack was removed: the general Hatch runs before the chat comes back (first-run screen at Hatch). */
   hatchPending?: boolean
+  /** The app version that last ran (the migration screen shows "Tomo <from> → <to>"). */
+  lastAppVersion?: string
   /** School pack updates (default: automatic). */
   packUpdateMode?: PackUpdateMode
   /** Windows: the "Tomo keeps running in the tray" notice was shown after the first close. */

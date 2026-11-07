@@ -47,6 +47,21 @@ export interface PackUpdateState {
   error?: string
 }
 
+/** The first start after an update that needs it: new engine, new tools, data format, then the engine starts. */
+export type MigrationTask = 'engine' | 'tools' | 'data' | 'start'
+export interface MigrationState {
+  /** true while the migration screen is shown (running, or stopped with an error) */
+  active: boolean
+  tasks: Record<MigrationTask, TaskState>
+  /** percent of the engine download / install */
+  percent: number
+  engine?: { from?: string; to: string }
+  app?: { from?: string; to: string }
+  error?: string
+  /** after an error: the previous engine runs again, so Tomo can be used meanwhile */
+  rolledBack?: boolean
+}
+
 /** What closing the main window does: keep running in the tray / menu bar, or quit Tomo. */
 export type CloseAction = 'tray' | 'quit'
 
@@ -99,6 +114,7 @@ export interface AppState {
   engine: { state: EngineState; version: string; installed: boolean; progress?: EngineProgress }
   answerMode: AnswerMode
   packUpdate: PackUpdateState & { mode: PackUpdateMode }
+  migration: MigrationState
   /** The school pack was removed: Tomo's general Hatch runs before the chat (first-run screen at the Hatch step). */
   hatchPending: boolean
   /** Windows portable build: the secret store is protected by the student's password, entered at every start. */
@@ -219,6 +235,10 @@ export interface TomoApi {
   unlockPortable(password: string): Promise<boolean>
   changePortablePassword(current: string, next: string): Promise<boolean>
   resetPortable(): Promise<void>
+  /** Run (again) the migration after an update; "use anyway" closes the screen after a rollback. */
+  runMigration(): Promise<void>
+  dismissMigration(): Promise<void>
+  onMigration(cb: (m: MigrationState) => void): () => void
   /** Remove the school pack and what came from it (skills, its answers and identifiers); chats stay. */
   removePack(): Promise<void>
   checkPackUpdate(): Promise<void>
@@ -282,6 +302,9 @@ export const IPC = {
   changePortablePassword: 'tomo:portable-change-password',
   resetPortable: 'tomo:portable-reset',
   removePack: 'tomo:remove-pack',
+  runMigration: 'tomo:run-migration',
+  dismissMigration: 'tomo:dismiss-migration',
+  migrationEvent: 'tomo:migration-event',
   checkPackUpdate: 'tomo:check-pack-update',
   installPackUpdate: 'tomo:install-pack-update',
   setPackUpdateMode: 'tomo:set-pack-update-mode',

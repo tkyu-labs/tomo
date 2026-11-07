@@ -77,5 +77,18 @@ html[data-platform="darwin"] .hatch-brand > * { -webkit-app-region: no-drag; }
 .unlock-card .modal-actions { justify-content: space-between; }
 .unlock-forgot { text-align: left; display: grid; gap: 8px; }
 .unlock-forgot p { margin: 2px 0 0; font-size: 12.5px; }
-.pack-one-note { margin: 0; padding: 0 0 4px; color: var(--text-muted); font-size: 12px; }
+.pack-one-note { margin: 0; padding: 0 14px 12px; color: var(--text-muted); font-size: 12px; }
 .migration-progress { margin: 4px 0 14px; }
+
+/* Settings: the engine line keeps version, dot and state on one line (`.setting-row span` is display: block) */
+.setting-row .engine-line .status-dot { display: inline-block; }
+
+/* Drop-downs: our own chevron with room on the right (the native arrow sat against the edge) */
+.setting-select {
+  appearance: none; -webkit-appearance: none; padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236E6E73' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; background-size: 10px 6px;
+}
+:root[data-theme="dark"] .setting-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23A1A1A6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}

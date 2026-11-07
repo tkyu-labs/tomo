@@ -139,7 +139,10 @@ export function Settings({ state, refresh, onPrefs, packReview, onPackReview }: 
               : <button className="secondary" disabled={update?.state === 'checking' || update?.state === 'downloading'} onClick={() => void window.tomo.checkForUpdates()}>{c('Check now', '立即检查', '今すぐ確認')}</button>}
           </div>
           <div className="setting-row">
-            <div><strong>{c('AI engine', 'AI 引擎', 'AI エンジン')}</strong><span>Hermes Agent {state.engine.version} · <span className={`status-dot ${ready ? 'ok' : ''}`} /> {state.engine.state}</span></div>
+            <div><strong>{c('AI engine', 'AI 引擎', 'AI エンジン')}</strong><span className="engine-line" data-testid="engine-line">Hermes Agent {state.engine.version} · <span className={`status-dot ${ready ? 'ok' : ''}`} />{{
+              ready: c('Running', '运行中', '実行中'), starting: c('Starting…', '正在启动…', '起動中…'),
+              stopped: c('Stopped', '已停止', '停止中'), crashed: c('Stopped unexpectedly', '意外停止', '予期せず停止しました'),
+            }[state.engine.state]}</span></div>
             <div className="row-actions">
               <button className="secondary" onClick={() => void window.tomo.diagnostics().then((d) => navigator.clipboard?.writeText(d))}>{c('Copy diagnostics', '复制诊断信息', '診断情報をコピー')}</button>
               <button className="secondary" disabled={!!busy} onClick={() => void run('restart', () => window.tomo.restartEngine(), c('Engine restarted', 'AI 引擎已重启', 'AI エンジンを再起動しました'))}>{c('Restart', '重启', '再起動')}</button>

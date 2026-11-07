@@ -33,8 +33,9 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /**
- * Engine start: the pack that ships with this app replaces the installed copy when it is the same or a newer version,
- * so app updates bring pack fixes (skills, privacy settings) to existing installs. A newer installed pack is kept.
+ * Engine start in development and tests: the pack in the local packs folder replaces the installed copy when it is the
+ * same or a newer version, so pack edits apply after a restart. A newer installed pack is kept. (The app ships no
+ * packs; installed apps update from tomo-packs main.)
  */
 export function refreshBundledPack(sourceDir: string, dataDir: string, id: string): boolean {
   const source = join(sourceDir, id)

@@ -54,6 +54,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
   // after removing the school pack only the general Hatch (and Finish) runs; everything else is set up already
   const [step, setStep] = useState<number>(state.hatchPending ? STEP.hatch : 0)
   const [packs, setPacks] = useState<PackSummary[]>([])
+  const [packsState, setPacksState] = useState<'loading' | 'ready' | 'offline'>('loading')
   const [packId, setPackId] = useState<string | null>(state.pack?.id ?? null)
   const [hatchPage, setHatchPage] = useState(0)
   const [answers, setAnswers] = useState<Answers>(() => (state.hatchPending ? { reply_language: state.prefs.locale } : {}))
@@ -77,7 +78,10 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
   )
   const [finishResult, setFinishResult] = useState<{ ok: boolean; failed?: FinishTask } | null>(null)
 
-  useEffect(() => { void window.tomo.listPacks().then(setPacks) }, [])
+  // school packs come from tomo-packs main (Tomo ships none): loaded while the first steps are shown
+  const fetchPacks = () => window.tomo.listPacks().then((r) => { setPacks(r.packs); setPacksState(r.offline && !r.packs.length ? 'offline' : 'ready') }, () => setPacksState('offline'))
+  const retryPacks = () => { setPacksState('loading'); void fetchPacks() }
+  useEffect(() => { void fetchPacks() }, []) // once, on mount
   useEffect(() => window.tomo.onSetupTask((u) => setTasks((t) => ({ ...t, [u.task]: { state: u.state, detail: u.detail } }))), [])
   useEffect(() => { if (step === STEP.browser && !browsers) void window.tomo.findBrowsers().then(setBrowsers) }, [step, browsers])
 
@@ -263,6 +267,15 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
               <h1>{c('Choose your school pack', '选择你的学校能力包', '学校パックを選択')}</h1>
               <p>{c('A school pack adds your university’s knowledge, portal guide and first-run questions. Packs are made by the community and are not affiliated with the schools.', '学校能力包会加入你所在大学的资料、门户指南和初次设置问题。能力包由社区制作，与学校无隶属关系。', '学校パックは大学の情報、ポータルの案内、初回の質問を追加します。パックはコミュニティ製で、学校とは無関係です。')}</p>
               <div className="pack-card-list" role="radiogroup" aria-label={c('School pack', '学校能力包', '学校パック')} style={{ marginTop: 0 }}>
+                {packsState === 'loading' && !packs.length && (
+                  <p className="hatch-note" data-testid="packs-loading"><span className="spinner" /> {c('Loading school packs…', '正在载入学校能力包…', '学校パックを読み込んでいます…')}</p>
+                )}
+                {packsState === 'offline' && (
+                  <div className="hatch-note error" data-testid="packs-offline">
+                    {c('School packs need an internet connection. Check the network and try again, or continue without one.', '载入学校能力包需要联网。请检查网络后重试，或先不使用能力包继续。', '学校パックの読み込みにはインターネット接続が必要です。ネットワークを確認して再試行するか、パックなしで続けてください。')}
+                    {' '}<button className="link-button inline" data-testid="packs-retry" onClick={retryPacks}>{c('Try again', '重试', '再試行')}</button>
+                  </div>
+                )}
                 {packs.map((p) => (
                   <div key={p.id} role="radio" aria-checked={packId === p.id} tabIndex={0} className={`pack-card ${packId === p.id ? 'selected' : ''}`} data-testid={`pack-${p.id}`} onClick={() => setPackId(p.id)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setPackId(p.id)}>
                     <span className="pack-check" aria-hidden="true"><Icon name="check" size={12} /></span>

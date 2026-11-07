@@ -87,6 +87,9 @@ export interface UpdateStatus {
   error?: string
 }
 
+/** The first-run pack choice; `offline` when tomo-packs main could not be read. */
+export interface PackList { packs: PackSummary[]; offline?: boolean }
+
 export interface PackSummary {
   id: string
   manifest: PackManifest
@@ -178,7 +181,8 @@ export interface TomoApi {
   setPrefs(prefs: Partial<Prefs>): Promise<void>
 
   // first run
-  listPacks(): Promise<PackSummary[]>
+  /** the packs on tomo-packs main (`offline`: main could not be read) */
+  listPacks(): Promise<PackList>
   selectPack(id: string | null): Promise<void>
   connectProvider(choice: ProviderChoice, key?: string, models?: string[]): Promise<void>
   /** "Test": ask the provider for its models with this key (nothing is saved). */

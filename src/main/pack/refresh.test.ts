@@ -13,7 +13,7 @@ const setVersion = (dir: string, v: string) => {
   writeFileSync(f, readFileSync(f, 'utf8').replace(/^version: .*$/m, `version: ${v}`))
 }
 
-describe('bundled pack refresh on engine start', () => {
+describe('local pack folder refresh on engine start (development)', () => {
   it('compares x.y.z versions', () => {
     expect(compareVersions('0.1.0', '0.1.0')).toBe(0)
     expect(compareVersions('0.2.0', '0.10.0')).toBeLessThan(0)

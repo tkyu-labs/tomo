@@ -25,14 +25,15 @@ async function mainEval(expression) {
 }
 const stub = await startStubModel({ port: Number(process.env.TOMO_E2E_STUB_PORT) || 0 })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-// TOMO_E2E_APP: run an installed app binary instead (with its bundled packs); TOMO_E2E_PACK: pack to pick.
+// TOMO_E2E_APP: run an installed app binary instead (packs from the local tomo-packs checkout: Tomo ships none and
+// e2e does not ask GitHub); TOMO_E2E_PACK: pack to pick.
 const PACK = process.env.TOMO_E2E_PACK ?? 'example-u'
 // TOMO_E2E_PORTABLE=<password>: portable mode (data in <root>/Data, secrets protected by this password)
 const PORTABLE = process.env.TOMO_E2E_PORTABLE ?? ''
 const app = await launchApp({
   executable: process.env.TOMO_E2E_APP,
   // GakuenAI offered (release builds bake its URL in; here the stub stands in for it)
-  env: { TOMO_DATA_DIR: data, TOMO_GAKUEN_URL: stub.url, ...(PORTABLE ? { TOMO_PORTABLE_ROOT: data } : {}), ...(process.env.TOMO_E2E_APP ? {} : { TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }) },
+  env: { TOMO_DATA_DIR: data, TOMO_GAKUEN_URL: stub.url, ...(PORTABLE ? { TOMO_PORTABLE_ROOT: data } : {}), TOMO_PACKS_DIR: join(root, process.env.TOMO_E2E_APP ? 'tomo-packs/packs' : 'test/fixtures/packs') },
   args: ['--use-mock-keychain', `--inspect=${INSPECT}`],
 })
 const $ = (sel) => `document.querySelector(${JSON.stringify(sel)})`

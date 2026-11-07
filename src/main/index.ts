@@ -11,6 +11,7 @@ import { findBrowsers } from './app/browsers'
 import { installChrome } from './app/chrome-install'
 import { devRuntime } from './hermes/runtime'
 import { EngineInstaller } from './engine/installer'
+import { fetchCatalogPacks } from './pack/remote'
 import { portableRoot, tomoDataDir, tomoPaths } from './paths'
 import { PortableKey } from './secrets/portable'
 
@@ -31,9 +32,10 @@ const appIconDir = isDev ? join(appRoot, 'build-resources') : process.resourcesP
 app.setPath('userData', join(dataDir, 'electron'))
 app.setPath('sessionData', join(dataDir, 'electron'))
 
-function packsSourceDir(): string {
+/** A local packs folder for development and tests only; the app itself ships no packs (they come from tomo-packs main). */
+function packsSourceDir(): string | undefined {
   if (process.env.TOMO_PACKS_DIR) return process.env.TOMO_PACKS_DIR
-  if (!isDev) return join(process.resourcesPath, 'packs')
+  if (!isDev) return undefined
   const checkout = join(appRoot, 'tomo-packs', 'packs')
   return existsSync(checkout) ? checkout : join(appRoot, 'test', 'fixtures', 'packs')
 }
@@ -54,6 +56,9 @@ const portableKey = portable ? new PortableKey(join(paths.data, 'secret-key.json
 const installEngine = !isDev || process.env.TOMO_ENGINE === 'install'
 const uvBinary = join(isDev ? join(appRoot, 'build', 'uv') : join(process.resourcesPath, 'uv'), process.platform === 'win32' ? 'uv.exe' : 'uv')
 
+// Tomo asks GitHub anonymously (60 requests an hour per address) for app updates, pack updates and the pack catalog:
+// tests that start Tomo many times turn that off with TOMO_NO_UPDATE_CHECKS=1 (the e2e default); "Check now" still works
+const githubChecks = process.env.TOMO_NO_UPDATE_CHECKS !== '1'
 const controller = new AppController({
   paths,
   systemLocale: () => localeFromTag(app.getPreferredSystemLanguages()[0]),
@@ -68,6 +73,8 @@ const controller = new AppController({
     decrypt: (data) => safeStorage.decryptString(data),
   },
   packsSourceDir: packsSourceDir(),
+  // the first-run choice lists what tomo-packs main has now (packaged app; TOMO_PACK_UPDATES=1 in development)
+  remotePacks: githubChecks && (app.isPackaged || process.env.TOMO_PACK_UPDATES === '1') ? () => fetchCatalogPacks(paths.data, app.getVersion()) : undefined,
   pluginsDir: isDev ? join(appRoot, 'plugins') : join(process.resourcesPath, 'plugins'),
   helpersDir: isDev ? join(appRoot, 'engine-helpers') : join(process.resourcesPath, 'engine-helpers'),
   runtimeDir: !installEngine && existsSync(join(appRoot, '.dev', 'home', 'tools')) ? join(appRoot, '.dev', 'home', 'tools') : undefined,
@@ -280,12 +287,9 @@ function setMenu(): void {
 app.whenReady().then(async () => {
   if (!primaryInstance) return
   setMenu()
-  // automatic checks ask GitHub anonymously (60 requests an hour per address): tests that start Tomo many times turn
-  // them off with TOMO_NO_UPDATE_CHECKS=1 (the e2e default); "Check now" still works
-  const autoChecks = process.env.TOMO_NO_UPDATE_CHECKS !== '1'
-  if (autoChecks) updater.start()
+  if (githubChecks) updater.start()
   // school pack updates from the tomo-packs main branch (packaged app; TOMO_PACK_UPDATES=1 in development)
-  if (autoChecks && (app.isPackaged || process.env.TOMO_PACK_UPDATES === '1')) controller.packUpdater.start()
+  if (githubChecks && (app.isPackaged || process.env.TOMO_PACK_UPDATES === '1')) controller.packUpdater.start()
   if (isDev && process.platform === 'darwin') app.dock?.setIcon(join(appIconDir, 'icon.png')) // packaged builds use icon.icns
   win = createWindow()
   tray.create()

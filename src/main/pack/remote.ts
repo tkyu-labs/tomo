@@ -2,11 +2,12 @@
 // version (packs need no build). One check = the commit main points to + that commit's catalog.json. A pack has an
 // update when the catalog's `lock_sha256` (the fingerprint of its pack.lock, written by tools/validate.py) differs from
 // the installed copy's. The download is the same commit's source archive; every file is checked against pack.lock
-// before anything is installed. Trust comes from the repository (reviewed pull requests into main); pack.lock makes
+// before anything is installed. The first-run pack choice also lists every pack main has (fetchCatalogPacks), so a
+// new school needs no Tomo update. Trust comes from the repository (reviewed pull requests into main); pack.lock makes
 // sure Tomo installs exactly that commit's files.
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs'
+import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -58,16 +59,24 @@ export function tomoSatisfies(requires: string | undefined, tomoVersion: string)
 }
 
 export interface RemotePack { commit: string; version: string; lock: string; requiresTomo?: string }
+interface CatalogEntry { id: string; version: string; lock_sha256: string; requires?: { tomo?: string } }
+export interface RemoteCatalog { commit: string; packs: CatalogEntry[] }
 
-/** What main holds for this pack now (null: not in the catalog). Two small requests. */
-export async function remotePack(id: string, fetchFn: typeof fetch = fetch, repo = PACKS_REPO): Promise<RemotePack | null> {
+/** The commit main points to and that commit's catalog.json. Two small requests. */
+export async function remoteCatalog(fetchFn: typeof fetch = fetch, repo = PACKS_REPO): Promise<RemoteCatalog> {
   const c = await fetchFn(`https://api.github.com/repos/${repo}/commits/main`, { headers: { accept: 'application/vnd.github.sha' } })
   if (!c.ok) throw new Error(`tomo-packs unavailable (${c.status})`)
   const commit = (await c.text()).trim()
   if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error('tomo-packs: unexpected commit id')
   const cat = await fetchFn(`https://raw.githubusercontent.com/${repo}/${commit}/catalog.json`)
   if (!cat.ok) throw new Error(`tomo-packs catalog unavailable (${cat.status})`)
-  const entry = ((await cat.json()) as { packs: { id: string; version: string; lock_sha256: string; requires?: { tomo?: string } }[] }).packs.find((p) => p.id === id)
+  return { commit, packs: ((await cat.json()) as { packs?: CatalogEntry[] }).packs ?? [] }
+}
+
+/** What main holds for this pack now (null: not in the catalog). */
+export async function remotePack(id: string, fetchFn: typeof fetch = fetch, repo = PACKS_REPO): Promise<RemotePack | null> {
+  const { commit, packs } = await remoteCatalog(fetchFn, repo)
+  const entry = packs.find((p) => p.id === id)
   return entry ? { commit, version: entry.version, lock: entry.lock_sha256, requiresTomo: entry.requires?.tomo } : null
 }
 
@@ -81,30 +90,66 @@ export function verifyPackFiles(packDir: string, expectedLock: string): void {
   }
 }
 
-/** Download the commit's source archive, take `packs/<id>` into `stageDir/<id>` and verify it (nothing installed). */
-export async function stageRemotePack(id: string, remote: RemotePack, dataDir: string, stageDir: string, fetchFn: typeof fetch = fetch, repo = PACKS_REPO): Promise<LoadedPack> {
+/** Downloads the commit's source archive and unpacks it; `use` gets the repository folder inside. */
+async function withArchive<T>(commit: string, dataDir: string, fetchFn: typeof fetch, repo: string, use: (root: string) => T | Promise<T>): Promise<T> {
   const dir = join(dataDir, 'cache', 'pack-downloads')
   mkdirSync(dir, { recursive: true })
-  const archive = join(dir, `tomo-packs-${remote.commit}.tar.gz`)
-  const res = await fetchFn(`https://codeload.github.com/${repo}/tar.gz/${remote.commit}`)
+  const archive = join(dir, `tomo-packs-${commit}.tar.gz`)
+  const res = await fetchFn(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
   if (!res.ok || !res.body) throw new Error(`pack download failed (${res.status})`)
   await pipeline(Readable.fromWeb(res.body as never), createWriteStream(archive))
-  const tmp = join(dir, `unpack-${remote.commit}`)
+  const tmp = join(dir, `unpack-${commit}`)
   rmSync(tmp, { recursive: true, force: true })
   mkdirSync(tmp, { recursive: true })
   try {
     await run(TAR, ['-xzf', archive, '-C', tmp])
-    const top = readdirSync(tmp).find((n) => existsSync(join(tmp, n, 'packs', id, 'pack.yaml')))
-    if (!top) throw new Error(`the archive has no packs/${id}`)
-    rmSync(stageDir, { recursive: true, force: true })
-    mkdirSync(stageDir, { recursive: true })
-    renameSync(join(tmp, top, 'packs', id), join(stageDir, id))
-    verifyPackFiles(join(stageDir, id), remote.lock)
-    const pack = loadPack(join(stageDir, id))
-    if (pack.manifest.id !== id) throw new Error(`archive holds ${pack.manifest.id}, expected ${id}`)
-    return pack
+    const top = readdirSync(tmp).find((n) => existsSync(join(tmp, n, 'packs')))
+    if (!top) throw new Error('the archive has no packs folder')
+    return await use(join(tmp, top))
   } finally {
     rmSync(tmp, { recursive: true, force: true })
     rmSync(archive, { force: true })
   }
+}
+
+/** Download the commit's source archive, take `packs/<id>` into `stageDir/<id>` and verify it (nothing installed). */
+export async function stageRemotePack(id: string, remote: RemotePack, dataDir: string, stageDir: string, fetchFn: typeof fetch = fetch, repo = PACKS_REPO): Promise<LoadedPack> {
+  return withArchive(remote.commit, dataDir, fetchFn, repo, (root) => {
+    if (!existsSync(join(root, 'packs', id, 'pack.yaml'))) throw new Error(`the archive has no packs/${id}`)
+    rmSync(stageDir, { recursive: true, force: true })
+    mkdirSync(stageDir, { recursive: true })
+    renameSync(join(root, 'packs', id), join(stageDir, id))
+    verifyPackFiles(join(stageDir, id), remote.lock)
+    const pack = loadPack(join(stageDir, id))
+    if (pack.manifest.id !== id) throw new Error(`archive holds ${pack.manifest.id}, expected ${id}`)
+    return pack
+  })
+}
+
+/**
+ * Every pack main lists, for the first-run pack choice: new schools appear without a Tomo update. Kept per commit in
+ * `<data>/cache/pack-catalog/<commit>/<id>` (one download per new commit; older copies removed). A pack whose files do
+ * not match pack.lock, or that needs a newer Tomo (`requires.tomo`), is left out. Returns the folder.
+ */
+export async function fetchCatalogPacks(dataDir: string, tomoVersion: string, fetchFn: typeof fetch = fetch, repo = PACKS_REPO): Promise<string> {
+  const cat = await remoteCatalog(fetchFn, repo)
+  const base = join(dataDir, 'cache', 'pack-catalog')
+  const target = join(base, cat.commit)
+  if (existsSync(join(target, '.complete'))) return target
+  await withArchive(cat.commit, dataDir, fetchFn, repo, (root) => {
+    rmSync(target, { recursive: true, force: true })
+    mkdirSync(target, { recursive: true })
+    for (const entry of cat.packs) {
+      const src = join(root, 'packs', entry.id)
+      if (!/^[a-z0-9-]+$/.test(entry.id) || !existsSync(join(src, 'pack.yaml')) || !tomoSatisfies(entry.requires?.tomo, tomoVersion)) continue
+      try {
+        verifyPackFiles(src, entry.lock_sha256)
+        if (loadPack(src).manifest.id !== entry.id) continue
+        renameSync(src, join(target, entry.id))
+      } catch { /* a pack that does not match its pack.lock is not offered */ }
+    }
+  })
+  writeFileSync(join(target, '.complete'), cat.commit)
+  for (const old of readdirSync(base)) if (old !== cat.commit) rmSync(join(base, old), { recursive: true, force: true })
+  return target
 }

@@ -21,9 +21,10 @@ npm test && npm run typecheck && npm run lint
 npm 12 and later skip dependency install scripts by default, so Electron's binary is not downloaded. Run
 `node node_modules/electron/install.js` once after `npm install` (or `npm ci`).
 
-The packs that ship with the app come from `TOMO_PACKS_SRC` (a `packs` folder) or the local tomo-packs checkout
-(the release workflow checks out tomo-packs `main`). Installed apps update packs from tomo-packs `main` themselves
-(`src/main/pack/remote.ts`: catalog `lock_sha256`, every file checked against `pack.lock`).
+School packs are not part of the app. Tomo reads the list of packs from tomo-packs `main` during the first run,
+downloads the chosen one and updates it from `main` later (`src/main/pack/remote.ts`: catalog `lock_sha256`, every
+file checked against `pack.lock`). Development and tests use a local folder instead: `TOMO_PACKS_DIR` (default in
+development: the nested `tomo-packs/packs` checkout, else `test/fixtures/packs`).
 
 ## Tester builds with GakuenAI
 

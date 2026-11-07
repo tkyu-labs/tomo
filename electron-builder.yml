@@ -17,8 +17,6 @@ extraResources:
   - from: plugins
     to: plugins
     filter: ['**/*', '!tests/**', '!**/__pycache__/**']
-  - from: build/packs
-    to: packs
   - from: build-resources
     to: .
     filter: ['icon.png', 'icon.ico', 'trayTemplate.png', 'trayTemplate@2x.png']

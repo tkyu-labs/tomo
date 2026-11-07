@@ -1,7 +1,7 @@
 // M6 "done when": a turn in each answer mode produces the expected study-log record, the mode reaches the model
 // through the tomo plugin, cards arrive as events, and the exported log holds no real or placeholder values.
 // Drives AppController (the window's backend) without Electron.
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -93,5 +93,35 @@ describe('busy while a turn runs (closing with "Quit Tomo" asks first)', () => {
     expect(ctl.busy).toBe(true)
     await done
     expect(ctl.busy).toBe(false)
+  })
+})
+
+describe('pack choice from tomo-packs main (Tomo ships no packs)', () => {
+  it('lists what main has, installs from the downloaded copy, and reports offline', async () => {
+    const remote = join(dir, 'remote-packs')
+    for (const [id, version] of [['example-u', '0.9.0'], ['new-u', '0.1.0']] as const) {
+      cpSync(join(repoRoot, 'test/fixtures/packs/example-u'), join(remote, id), { recursive: true })
+      const f = join(remote, id, 'pack.yaml')
+      writeFileSync(f, readFileSync(f, 'utf8').replace(/^id: .*$/m, `id: ${id}`).replace(/^version: .*$/m, `version: ${version}`))
+    }
+    const make = (remotePacks?: () => Promise<string>, packsSourceDir?: string) => new AppController({
+      paths: tomoPaths(join(dir, 'choice')), runtime: devRuntime(repoRoot), encryptor: { isAvailable: () => true, encrypt: (s) => Buffer.from(s), decrypt: (b) => b.toString() },
+      packsSourceDir, pluginsDir: join(repoRoot, 'plugins'), baseEnv: {}, remotePacks,
+      emit: { chat: () => {}, request: () => {}, setupTask: () => {}, engineState: () => {} },
+    })
+    // the app: no local folder, everything from main
+    const app = make(async () => remote)
+    const list = await app.listPacks()
+    expect(list.offline).toBeUndefined()
+    expect(list.packs.map((p) => p.id).sort()).toEqual(['example-u', 'new-u'])
+    app.selectPack('new-u')
+    expect(readFileSync(join(dir, 'choice', 'packs', 'new-u', 'pack.yaml'), 'utf8')).toMatch(/^id: new-u$/m)
+    // offline: nothing to choose, and it says so (the student can retry or go on without a pack)
+    const offline = make(async () => { throw new Error('offline') })
+    expect(await offline.listPacks()).toEqual({ packs: [], offline: true })
+    expect(() => offline.selectPack('new-u')).toThrow(/not available/)
+    // development: a local folder next to main, the newer version wins
+    const dev = make(async () => remote, join(repoRoot, 'test/fixtures/packs'))
+    expect((await dev.listPacks()).packs.find((p) => p.id === 'example-u')?.manifest.version).toBe('0.9.0')
   })
 })

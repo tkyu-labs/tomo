@@ -30,10 +30,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/checkout@v7
-        with:
-          repository: tkyu-labs/tomo-packs
-          path: tomo-packs
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -43,11 +39,10 @@ jobs:
         run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
       - run: npm ci
       - run: npm run typecheck && npm run lint
-      - name: uv and school packs
+      # school packs are not shipped: Tomo reads them from tomo-packs main
+      - name: uv
         shell: bash
-        run: |
-          node scripts/fetch-uv.mjs ${{ matrix.target == 'win' && 'win32-x64' || '' }}
-          node scripts/prepare-packs.mjs
+        run: node scripts/fetch-uv.mjs ${{ matrix.target == 'win' && 'win32-x64' || '' }}
       - name: Check the macOS signing certificate
         if: matrix.target == 'mac'
         shell: bash

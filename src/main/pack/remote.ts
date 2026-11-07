@@ -1,4 +1,5 @@
-// School packs come from the tomo-packs repository's main branch: there are no pack releases, main is the current
+// School packs come from the tomo-packs repository's main branch (through Tomo's download mirror first, GitHub second;
+// src/main/net/sources.ts): there are no pack releases, main is the current
 // version (packs need no build). One check = the commit main points to + that commit's catalog.json. A pack has an
 // update when the catalog's `lock_sha256` (the fingerprint of its pack.lock, written by tools/validate.py) differs from
 // the installed copy's. The download is the same commit's source archive; every file is checked against pack.lock
@@ -12,6 +13,7 @@ import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { promisify } from 'node:util'
+import { fetchFirst, sources } from '../net/sources'
 import { compareVersions, loadPack, type LoadedPack } from './pack'
 
 const run = promisify(execFile)
@@ -62,14 +64,23 @@ export interface RemotePack { commit: string; version: string; lock: string; req
 interface CatalogEntry { id: string; version: string; lock_sha256: string; requires?: { tomo?: string } }
 export interface RemoteCatalog { commit: string; packs: CatalogEntry[] }
 
-/** The commit main points to and that commit's catalog.json. Two small requests. */
+const COMMIT = /^[0-9a-f]{40}$/
+
+/** The commit main points to (mirror `packs/main`, else GitHub's API). */
+async function mainCommit(fetchFn: typeof fetch, repo: string): Promise<string> {
+  for (const url of sources('packs/main', `https://api.github.com/repos/${repo}/commits/main`)) {
+    try {
+      const commit = (await (await fetchFirst([url], { headers: { accept: 'application/vnd.github.sha' } }, fetchFn)).text()).trim()
+      if (COMMIT.test(commit)) return commit
+    } catch { /* next source */ }
+  }
+  throw new Error('tomo-packs unavailable (mirror and GitHub)')
+}
+
+/** The commit main points to and that commit's catalog.json (mirror first, GitHub second). Two small requests. */
 export async function remoteCatalog(fetchFn: typeof fetch = fetch, repo = PACKS_REPO): Promise<RemoteCatalog> {
-  const c = await fetchFn(`https://api.github.com/repos/${repo}/commits/main`, { headers: { accept: 'application/vnd.github.sha' } })
-  if (!c.ok) throw new Error(`tomo-packs unavailable (${c.status})`)
-  const commit = (await c.text()).trim()
-  if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error('tomo-packs: unexpected commit id')
-  const cat = await fetchFn(`https://raw.githubusercontent.com/${repo}/${commit}/catalog.json`)
-  if (!cat.ok) throw new Error(`tomo-packs catalog unavailable (${cat.status})`)
+  const commit = await mainCommit(fetchFn, repo)
+  const cat = await fetchFirst(sources(`packs/${commit}/catalog.json`, `https://raw.githubusercontent.com/${repo}/${commit}/catalog.json`), {}, fetchFn)
   return { commit, packs: ((await cat.json()) as { packs?: CatalogEntry[] }).packs ?? [] }
 }
 
@@ -95,8 +106,8 @@ async function withArchive<T>(commit: string, dataDir: string, fetchFn: typeof f
   const dir = join(dataDir, 'cache', 'pack-downloads')
   mkdirSync(dir, { recursive: true })
   const archive = join(dir, `tomo-packs-${commit}.tar.gz`)
-  const res = await fetchFn(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
-  if (!res.ok || !res.body) throw new Error(`pack download failed (${res.status})`)
+  const res = await fetchFirst(sources(`packs/${commit}.tar.gz`, `https://codeload.github.com/${repo}/tar.gz/${commit}`), {}, fetchFn)
+  if (!res.body) throw new Error('pack download failed (empty answer)')
   await pipeline(Readable.fromWeb(res.body as never), createWriteStream(archive))
   const tmp = join(dir, `unpack-${commit}`)
   rmSync(tmp, { recursive: true, force: true })

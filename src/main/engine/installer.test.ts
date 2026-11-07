@@ -22,13 +22,16 @@ describe('engine installer', () => {
 
   it('refuses a download whose hash does not match and installs nothing', async () => {
     const data = tmp()
-    const fake = (async () => new Response('not hermes', { status: 200, headers: { 'content-length': '10' } })) as unknown as typeof fetch
+    const urls: string[] = []
+    const fake = (async (u: string) => { urls.push(u); return new Response('not hermes', { status: 200, headers: { 'content-length': '10' } }) }) as unknown as typeof fetch
     const inst = new EngineInstaller({ dataDir: data, hermesHome: join(data, 'hermes'), uv: 'uv', baseEnv: {}, fetchFn: fake })
     const seen: string[] = []
     await expect(inst.prepare((p) => seen.push(p.stage))).rejects.toThrow(/failed its check/)
     expect(seen.at(-1)).toBe('error')
     expect(inst.installed()).toBe(false)
     expect(existsSync(join(data, 'engine', 'hermes-src'))).toBe(false)
+    // Tomo's mirror first; a file failing the pinned hash there sends it to GitHub, which fails the check too
+    expect(urls).toEqual([`https://tomo.gakuen.ac/downloads/hermes/${HERMES_PIN.commit}.tar.gz`, HERMES_PIN.archiveUrl])
   })
 
   it('counts an install without the extras this Tomo needs as not installed (it is re-synced)', () => {

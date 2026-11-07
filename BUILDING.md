@@ -21,6 +21,11 @@ npm test && npm run typecheck && npm run lint
 npm 12 and later skip dependency install scripts by default, so Electron's binary is not downloaded. Run
 `node node_modules/electron/install.js` once after `npm install` (or `npm ci`).
 
+Downloads go to Tomo's mirror first (`https://tomo.gakuen.ac/downloads`: app updates, the Hermes archive, tomo-packs
+`main`; the same files as on GitHub) and to GitHub when the mirror is unreachable or lacks a file
+(`src/main/net/sources.ts`; `TOMO_MIRROR_URL` points elsewhere, an empty value skips the mirror). Checks never depend
+on the mirror: pinned SHA-256 for Hermes, `pack.lock` for packs, `sha512` in `latest*.yml` for app updates.
+
 School packs are not part of the app. Tomo reads the list of packs from tomo-packs `main` during the first run,
 downloads the chosen one and updates it from `main` later (`src/main/pack/remote.ts`: catalog `lock_sha256`, every
 file checked against `pack.lock`). Development and tests use a local folder instead: `TOMO_PACKS_DIR` (default in

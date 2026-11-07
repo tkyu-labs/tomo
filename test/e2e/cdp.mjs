@@ -10,7 +10,7 @@ export async function launchApp({ port = 9351, env = {}, args = [], executable }
   // executable: an installed Tomo.app binary; default: the dev Electron with this repository
   const bin = executable ?? require('electron')
   const proc = spawn(bin, [...(executable ? [] : ['.']), `--remote-debugging-port=${port}`, ...args], {
-    env: { ...process.env, TOMO_NO_UPDATE_CHECKS: '1', ...env }, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'],
   })
   let log = ''
   proc.stdout.on('data', (d) => { log += d })

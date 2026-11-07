@@ -20,7 +20,7 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const url = `http://127.0.0.1:${server.address().port}/`
 const data = mkdtempSync(join(tmpdir(), 'tomo-update-'))
-const app = await launchApp({ executable: bin, env: { TOMO_DATA_DIR: data, TOMO_UPDATE_URL: url, TOMO_NO_UPDATE_CHECKS: '' }, args: ['--use-mock-keychain'] })
+const app = await launchApp({ executable: bin, env: { TOMO_DATA_DIR: data, TOMO_UPDATE_URL: url }, args: ['--use-mock-keychain'] })
 const states = []
 try {
   const end = Date.now() + 240_000

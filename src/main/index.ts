@@ -56,9 +56,6 @@ const portableKey = portable ? new PortableKey(join(paths.data, 'secret-key.json
 const installEngine = !isDev || process.env.TOMO_ENGINE === 'install'
 const uvBinary = join(isDev ? join(appRoot, 'build', 'uv') : join(process.resourcesPath, 'uv'), process.platform === 'win32' ? 'uv.exe' : 'uv')
 
-// Tomo asks GitHub anonymously (60 requests an hour per address) for app updates, pack updates and the pack catalog:
-// tests that start Tomo many times turn that off with TOMO_NO_UPDATE_CHECKS=1 (the e2e default); "Check now" still works
-const githubChecks = process.env.TOMO_NO_UPDATE_CHECKS !== '1'
 const controller = new AppController({
   paths,
   systemLocale: () => localeFromTag(app.getPreferredSystemLanguages()[0]),
@@ -73,8 +70,8 @@ const controller = new AppController({
     decrypt: (data) => safeStorage.decryptString(data),
   },
   packsSourceDir: packsSourceDir(),
-  // the first-run choice lists what tomo-packs main has now (packaged app; TOMO_PACK_UPDATES=1 in development)
-  remotePacks: githubChecks && (app.isPackaged || process.env.TOMO_PACK_UPDATES === '1') ? () => fetchCatalogPacks(paths.data, app.getVersion()) : undefined,
+  // the first-run choice lists what tomo-packs main has now (Tomo's mirror first, GitHub second)
+  remotePacks: () => fetchCatalogPacks(paths.data, app.getVersion()),
   pluginsDir: isDev ? join(appRoot, 'plugins') : join(process.resourcesPath, 'plugins'),
   helpersDir: isDev ? join(appRoot, 'engine-helpers') : join(process.resourcesPath, 'engine-helpers'),
   runtimeDir: !installEngine && existsSync(join(appRoot, '.dev', 'home', 'tools')) ? join(appRoot, '.dev', 'home', 'tools') : undefined,
@@ -287,9 +284,9 @@ function setMenu(): void {
 app.whenReady().then(async () => {
   if (!primaryInstance) return
   setMenu()
-  if (githubChecks) updater.start()
-  // school pack updates from the tomo-packs main branch (packaged app; TOMO_PACK_UPDATES=1 in development)
-  if (githubChecks && (app.isPackaged || process.env.TOMO_PACK_UPDATES === '1')) controller.packUpdater.start()
+  updater.start()
+  // school pack updates from the tomo-packs main branch (mirror first, GitHub second)
+  controller.packUpdater.start()
   if (isDev && process.platform === 'darwin') app.dock?.setIcon(join(appIconDir, 'icon.png')) // packaged builds use icon.icns
   win = createWindow()
   tray.create()

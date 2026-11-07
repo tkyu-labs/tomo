@@ -40,13 +40,32 @@ describe('pack catalog from tomo-packs main', () => {
   const calls: string[] = []
   const fake = (async (url: string) => {
     calls.push(url)
+    if (url.startsWith('https://tomo.gakuen.ac/')) return new Response('mirror down', { status: 503 })
     if (url.includes('/commits/main')) return new Response(COMMIT)
     if (url.endsWith('/catalog.json')) return new Response(JSON.stringify(catalog))
     if (url.includes('codeload.github.com')) return new Response(readFileSync(archive))
     return new Response('not found', { status: 404 })
   }) as typeof fetch
 
+  it('reads the mirror first and touches GitHub only for what the mirror does not have', async () => {
+    const mirrorCalls: string[] = []
+    const mirror = (async (url: string) => {
+      mirrorCalls.push(url)
+      if (url === 'https://tomo.gakuen.ac/downloads/packs/main') return new Response(COMMIT + '\n')
+      if (url === `https://tomo.gakuen.ac/downloads/packs/${COMMIT}/catalog.json`) return new Response(JSON.stringify(catalog))
+      if (url === `https://tomo.gakuen.ac/downloads/packs/${COMMIT}.tar.gz`) return new Response(readFileSync(archive))
+      return new Response('not found', { status: 404 })
+    }) as typeof fetch
+    expect(readdirSync(await fetchCatalogPacks(join(work, 'data-mirror'), '0.1.0', mirror)).filter((n) => !n.startsWith('.'))).toEqual(['first-u'])
+    expect(mirrorCalls.every((u) => u.startsWith('https://tomo.gakuen.ac/'))).toBe(true)
+    // the mirror is down: everything from GitHub (the fake below answers 404 for the mirror's URLs)
+    calls.length = 0
+    await fetchCatalogPacks(join(work, 'data-github'), '0.1.0', fake)
+    expect(calls.filter((u) => u.startsWith('https://api.github.com/') || u.startsWith('https://raw.githubusercontent.com/') || u.startsWith('https://codeload.github.com/')).length).toBe(3)
+  })
+
   it('keeps the packs that match pack.lock and this Tomo, once per commit', async () => {
+    calls.length = 0
     const data = join(work, 'data')
     const dir = await fetchCatalogPacks(data, '0.1.0', fake)
     expect(readdirSync(dir).filter((n) => !n.startsWith('.')).sort()).toEqual(['first-u'])

@@ -9,6 +9,7 @@
 // pin, the extras or the tool list change; then Tomo's migration step installs the new engine next to the old one,
 // switches to it, and only deletes the old one once the new one has started (rollback() otherwise). Installs from
 // before versioned folders (hermes-src and venv directly in <data>/engine) are read as the previous engine.
+import { fetchFirst, sources } from '../net/sources'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
@@ -213,13 +214,10 @@ export class EngineInstaller {
     return rt
   }
 
-  /** Steps 1–2: download, verify and unpack the pinned source. */
-  private async fetchSource(report: (p: EngineProgress) => void, src: string): Promise<void> {
-    // 1. download and verify the source archive (0–30 %)
-    report({ stage: 'download', percent: 0 })
-    const archive = join(src, '..', 'hermes-src.tar.gz')
-    const res = await (this.opts.fetchFn ?? fetch)(this.pin.archiveUrl)
-    if (!res.ok || !res.body) throw new Error(`Could not download Hermes (${res.status}) from ${this.pin.archiveUrl}`)
+  /** Downloads one source into `archive` (progress 0–30 %) and checks it against the pinned SHA-256. */
+  private async downloadVerified(url: string, archive: string, report: (p: EngineProgress) => void): Promise<void> {
+    const res = await fetchFirst([url], {}, this.opts.fetchFn ?? fetch)
+    if (!res.body) throw new Error(`Could not download Hermes from ${new URL(url).host}`)
     const total = Number(res.headers.get('content-length')) || 0
     const hash = createHash('sha256')
     let got = 0
@@ -236,7 +234,27 @@ export class EngineInstaller {
       createWriteStream(archive),
     )
     const sha = hash.digest('hex')
-    if (sha !== this.pin.archiveSha256) { rmSync(archive, { force: true }); throw new Error(`Hermes download failed its check (SHA-256 ${sha.slice(0, 12)}…)`) }
+    if (sha !== this.pin.archiveSha256) throw new Error(`Hermes download from ${new URL(url).host} failed its check (SHA-256 ${sha.slice(0, 12)}…)`)
+  }
+
+  /** Steps 1–2: download, verify and unpack the pinned source. */
+  private async fetchSource(report: (p: EngineProgress) => void, src: string): Promise<void> {
+    // 1. download and verify the source archive (0–30 %)
+    report({ stage: 'download', percent: 0 })
+    const archive = join(src, '..', 'hermes-src.tar.gz')
+    // Tomo's mirror first, GitHub second; a file that fails the pinned SHA-256 counts as a failed source
+    let lastError: unknown
+    for (const url of sources(`hermes/${this.pin.commit}.tar.gz`, this.pin.archiveUrl)) {
+      try {
+        await this.downloadVerified(url, archive, report)
+        lastError = undefined
+        break
+      } catch (e) {
+        rmSync(archive, { force: true })
+        lastError = e
+      }
+    }
+    if (lastError) throw lastError instanceof Error ? lastError : new Error(String(lastError))
 
     // 2. unpack (30–35 %)
     report({ stage: 'unpack', percent: 30 })

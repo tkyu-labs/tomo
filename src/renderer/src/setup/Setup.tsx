@@ -241,7 +241,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
                       <label className="setup-key-text" htmlFor="gakuen-key">{c('If you have a GakuenAI key, enter it here:', '如果你有 GakuenAI Key，可以直接在这里填入：', 'GakuenAI キーをお持ちなら、ここに入力してください：')}</label>
                       <div className="key-input-row">
                         <input id="gakuen-key" data-testid="gakuen-key" type={showGakuenKey ? 'text' : 'password'} className="catalog-search-input" value={gakuenKey} onChange={(e) => { setGakuenKey(e.target.value); setError(null) }} onKeyDown={(e) => e.key === 'Enter' && gakuenKey.trim() && !gakuenTesting && void connectGakuen()} placeholder="sk-…" autoComplete="off" spellCheck={false} />
-                        <button className="secondary" onClick={() => setShowGakuenKey(!showGakuenKey)} aria-label={showGakuenKey ? c('Hide key', '隐藏 Key', 'キーを隠す') : c('Show key', '显示 Key', 'キーを表示')} aria-pressed={showGakuenKey}><Icon name="eye" size={14} /></button>
+                        <button className="secondary" data-testid="gakuen-key-show" onClick={() => setShowGakuenKey(!showGakuenKey)} aria-label={showGakuenKey ? c('Hide key', '隐藏 Key', 'キーを隠す') : c('Show key', '显示 Key', 'キーを表示')} aria-pressed={showGakuenKey}><Icon name={showGakuenKey ? 'eye-slash' : 'eye'} size={14} /></button>
                         <button className="secondary" data-testid="gakuen-test" disabled={!gakuenKey.trim() || gakuenTesting} onClick={() => void connectGakuen()}>
                           {gakuenTesting ? c('Testing…', '测试中…', 'テスト中…') : c('Test', '测试', 'テスト')}
                         </button>
@@ -423,7 +423,8 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
           </div>
         </div>
       </div>
-      {sheetOpen && <ProviderSheet onClose={() => setSheetOpen(false)} onConnect={connect} gakuenAvailable={state.gakuenAvailable} />}
+      {/* nothing connected yet: GakuenAI has its own field on this step, so the sheet is for the other providers */}
+      {sheetOpen && <ProviderSheet onClose={() => setSheetOpen(false)} onConnect={connect} gakuenAvailable={state.gakuenAvailable && !!state.provider} />}
     </main>
   )
 }

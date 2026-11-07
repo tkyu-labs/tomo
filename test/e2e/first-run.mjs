@@ -88,8 +88,15 @@ try {
   await type('[data-testid=gakuen-key]', 'sk-empty'); await click('[data-testid=gakuen-test]')
   report.gakuenNoCredit = await app.waitFor(`/has no balance/.test(document.querySelector('.hatch-note.error')?.textContent ?? '')`, 20000).then(() => true, () => false)
   await type('[data-testid=gakuen-key]', '')
+  // the eye button shows the key and turns into a closed eye; a second press hides it again
+  const eye = `(() => { const b = document.querySelector('[data-testid=gakuen-key-show]'); return document.querySelector('[data-testid=gakuen-key]').type + ':' + b.getAttribute('aria-pressed') + ':' + b.querySelector('svg').dataset.icon })()`
+  await click('[data-testid=gakuen-key-show]'); await sleep(100)
+  const shown = await app.evaluate(eye)
+  await click('[data-testid=gakuen-key-show]'); await sleep(100)
+  report.gakuenEye = [shown, await app.evaluate(eye)]
   await click('[data-testid=other-provider]'); await sleep(200)
-  report.gakuenFirst = await app.evaluate(`document.querySelector('.provider-list input[type=radio]')?.dataset.testid === 'provider-gakuen'`)
+  // "choose a provider" on this step lists the others: no GakuenAI (it has its own field), OpenAI sign-in next to its API key
+  report.sheetOrder = await app.evaluate(`[...document.querySelectorAll('.provider-list input[type=radio]')].map((r) => r.dataset.testid.replace('provider-', '')).join(',')`)
   report.enginePillAtStart = await app.evaluate(`document.querySelector('[data-testid=engine-pill]')?.textContent`)
   if (REAL) {
     // ChatGPT sign-in: OpenAI hands out a device code (not completed here; switching provider cancels it)
@@ -229,7 +236,7 @@ try {
   }
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.gakuenField && report.gakuenNoCredit && !report.testerWording && report.gakuenFirst && (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && (REAL || (report.removeDialog && report.generalHatch === 'About you' && report.afterRemove?.pack === null && !report.afterRemove.hatchPending && report.afterRemove.memory.length === 2 && report.afterRemove.memory[1].startsWith('The user skipped'))) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.gakuenField && report.gakuenNoCredit && !report.testerWording && report.sheetOrder === 'openai,openai-api,openrouter,deepseek,custom' && report.gakuenEye?.join() === 'text:true:eye-slash,password:false:eye' && (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && (REAL || (report.removeDialog && report.generalHatch === 'About you' && report.afterRemove?.pack === null && !report.afterRemove.hatchPending && report.afterRemove.memory.length === 2 && report.afterRemove.memory[1].startsWith('The user skipped'))) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {

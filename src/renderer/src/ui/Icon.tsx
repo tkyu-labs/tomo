@@ -2,7 +2,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import {
   faArrowsRotate, faArrowUp, faArrowUpRightFromSquare, faBell, faBookmark, faCalendar, faCheck, faChevronLeft,
-  faChevronRight, faCircleInfo, faCircleStop, faClock, faComment, faCopy, faCube, faEye, faFileLines, faGear,
+  faChevronRight, faCircleInfo, faCircleStop, faClock, faComment, faCopy, faCube, faEye, faEyeSlash, faFileLines, faGear,
   faGraduationCap, faKey, faLanguage, faLock, faMagnifyingGlass, faMicrochip, faPlus, faSearch, faShieldHalved,
   faTableColumns, faTrashCan, faWandMagicSparkles, faXmark,
 } from '@fortawesome/free-solid-svg-icons'
@@ -14,7 +14,7 @@ const icons = {
   check: faCheck, clock: faClock, shield: faShieldHalved, external: faArrowUpRightFromSquare, send: faArrowUp,
   chevron: faChevronRight, info: faCircleInfo, calendar: faCalendar, graduation: faGraduationCap, stop: faCircleStop,
   close: faXmark, lock: faLock, box: faCube, key: faKey, cpu: faMicrochip, refresh: faArrowsRotate, trash: faTrashCan,
-  eye: faEye, copy: faCopy, find: faSearch,
+  eye: faEye, 'eye-slash': faEyeSlash, copy: faCopy, find: faSearch,
 } satisfies Record<string, IconDefinition>
 
 export type IconName = keyof typeof icons

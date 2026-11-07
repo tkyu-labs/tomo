@@ -2,7 +2,7 @@
 // returns models; the student then picks one instead of typing a model id.
 import type { ProviderChoice } from '@shared/ipc'
 
-export interface ModelsResult { ok: boolean; models?: string[]; error?: 'wrong-key' | 'unreachable' | 'no-models'; detail?: string }
+export interface ModelsResult { ok: boolean; models?: string[]; error?: 'wrong-key' | 'no-credit' | 'unreachable' | 'no-models'; detail?: string }
 
 const BASE: Partial<Record<ProviderChoice['id'], string>> = {
   'openai-api': 'https://api.openai.com/v1',
@@ -27,6 +27,8 @@ export function chatModels(ids: string[]): string[] {
   return [...new Set(ids.filter((id) => !skip.test(id)))].sort((a, b) => a.localeCompare(b))
 }
 
+const NO_CREDIT = /insufficient|balance|quota|credit|billing/i
+
 export async function listProviderModels(choice: Pick<ProviderChoice, 'id' | 'baseUrl' | 'customKind'>, key: string, fetchFn: typeof fetch = fetch): Promise<ModelsResult> {
   let req
   try { req = modelsRequest(choice, key) } catch (e) { return { ok: false, error: 'unreachable', detail: String(e) } }
@@ -36,6 +38,9 @@ export async function listProviderModels(choice: Pick<ProviderChoice, 'id' | 'ba
   } catch (e) {
     return { ok: false, error: 'unreachable', detail: e instanceof Error ? e.message : String(e) }
   }
+  // a key whose balance or quota is used up is not a wrong key (GakuenAI: 403 INSUFFICIENT_BALANCE; OpenRouter 402;
+  // OpenAI 429 insufficient_quota): the student must top up, not paste the key again
+  if (res.status === 402 || ((res.status === 403 || res.status === 429) && NO_CREDIT.test(await res.clone().text().catch(() => '')))) return { ok: false, error: 'no-credit' }
   if (res.status === 401 || res.status === 403) return { ok: false, error: 'wrong-key' }
   if (!res.ok) return { ok: false, error: 'unreachable', detail: `HTTP ${res.status}` }
   const body = (await res.json().catch(() => ({}))) as { data?: { id?: string }[]; models?: { id?: string; name?: string }[] }

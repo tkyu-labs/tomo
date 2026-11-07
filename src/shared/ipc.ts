@@ -182,7 +182,7 @@ export interface TomoApi {
   selectPack(id: string | null): Promise<void>
   connectProvider(choice: ProviderChoice, key?: string, models?: string[]): Promise<void>
   /** "Test": ask the provider for its models with this key (nothing is saved). */
-  listProviderModels(choice: ProviderChoice, key: string): Promise<{ ok: boolean; models?: string[]; error?: 'wrong-key' | 'unreachable' | 'no-models'; detail?: string }>
+  listProviderModels(choice: ProviderChoice, key: string): Promise<{ ok: boolean; models?: string[]; error?: 'wrong-key' | 'no-credit' | 'unreachable' | 'no-models'; detail?: string }>
   /** ChatGPT sign-in (OpenAI, device code). Events: code → approved (with models) | expired | error. */
   startChatGptLogin(): Promise<void>
   cancelChatGptLogin(): Promise<void>

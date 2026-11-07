@@ -18,6 +18,11 @@ export async function startStubModel({ port = 0, failStatus = 0 } = {}) {
   const server = createServer(async (req, res) => {
     let body = ''
     for await (const chunk of req) body += chunk
+    // the key "sk-empty" plays a GakuenAI key with no balance left (the relay's real answer)
+    if (req.method === 'GET' && req.url?.endsWith('/models') && req.headers.authorization === 'Bearer sk-empty') {
+      res.writeHead(403, { 'content-type': 'application/json' })
+      return res.end(JSON.stringify({ code: 'INSUFFICIENT_BALANCE', message: 'Insufficient account balance' }))
+    }
     if (req.method === 'GET' && req.url?.endsWith('/models')) {
       return json(res, { object: 'list', data: [{ id: 'stub-model', object: 'model', owned_by: 'tomo-test', context_length: 128000 }] })
     }

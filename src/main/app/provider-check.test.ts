@@ -15,6 +15,11 @@ describe('provider check', () => {
   it('reports a wrong key, an unreachable endpoint and a model list', async () => {
     expect(await listProviderModels({ id: 'deepseek' }, 'bad', json(401, {}) as never)).toEqual({ ok: false, error: 'wrong-key' })
     expect((await listProviderModels({ id: 'deepseek' }, 'k', (async () => { throw new Error('ENOTFOUND') }) as never)).error).toBe('unreachable')
+    // used-up balance is not a wrong key (GakuenAI, OpenRouter, OpenAI)
+    expect((await listProviderModels({ id: 'gakuen', baseUrl: 'https://g.example/v1' }, 'k', json(403, { code: 'INSUFFICIENT_BALANCE', message: 'Insufficient account balance' }) as never)).error).toBe('no-credit')
+    expect((await listProviderModels({ id: 'openrouter' }, 'k', json(402, { error: { message: 'Insufficient credits' } }) as never)).error).toBe('no-credit')
+    expect((await listProviderModels({ id: 'openai-api' }, 'k', json(429, { error: { code: 'insufficient_quota' } }) as never)).error).toBe('no-credit')
+    expect((await listProviderModels({ id: 'gakuen', baseUrl: 'https://g.example/v1' }, 'k', json(403, { code: 'INVALID_KEY' }) as never)).error).toBe('wrong-key')
     expect(await listProviderModels({ id: 'deepseek' }, 'k', json(200, { data: [{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }] }) as never)).toEqual({ ok: true, models: ['deepseek-chat', 'deepseek-reasoner'] })
   })
 })

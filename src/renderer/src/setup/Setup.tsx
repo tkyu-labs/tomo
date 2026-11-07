@@ -135,7 +135,15 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
     setGakuenTesting(true)
     try {
       const res = await window.tomo.listProviderModels({ id: 'gakuen', model: '' }, gakuenKey.trim())
-      if (!res.ok || !res.models) throw new Error(res.error === 'wrong-key' ? c('GakuenAI did not accept this key.', 'GakuenAI 不接受这个 Key。', 'GakuenAI がこのキーを受け付けませんでした。') : c('Cannot reach GakuenAI.', '无法连接 GakuenAI。', 'GakuenAI に接続できません。'))
+      if (!res.ok || !res.models) {
+        throw new Error(res.error === 'wrong-key'
+          ? c('GakuenAI did not accept this key. Check that you copied all of it.', 'GakuenAI 不接受这个 Key，请确认是否完整复制。', 'GakuenAI がこのキーを受け付けませんでした。すべてコピーしたか確認してください。')
+          : res.error === 'no-credit'
+            ? c('This GakuenAI key has no balance left. Top it up, then press Test again.', '这个 GakuenAI Key 的余额已用完，充值后再点“测试”。', 'この GakuenAI キーの残高がありません。チャージしてから、もう一度「テスト」を押してください。')
+            : res.error === 'no-models'
+              ? c('The key works, but GakuenAI listed no chat models.', 'Key 可用，但 GakuenAI 没有返回可用的对话模型。', 'キーは有効ですが、GakuenAI に利用できるチャットモデルがありません。')
+              : c('Cannot reach GakuenAI. Check your network.', '无法连接 GakuenAI，请检查网络。', 'GakuenAI に接続できません。ネットワークを確認してください。'))
+      }
       await window.tomo.connectProvider({ id: 'gakuen', model: suggestModel(res.models), reasoning: 'low' }, gakuenKey.trim(), res.models)
       setGakuenKey('')
       await refresh()

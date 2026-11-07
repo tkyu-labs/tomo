@@ -8,7 +8,7 @@ export type TurnEvent =
   | { kind: 'reasoning'; text: string }
   | { kind: 'tool.start'; toolId: string; name: string; args?: Record<string, unknown> | null }
   | { kind: 'tool.complete'; toolId: string; name: string; summary?: string | null; durationS?: number | null; personalSite?: string }
-  | { kind: 'complete'; text: string; status?: string | null; error?: string | null }
+  | { kind: 'complete'; text: string; status?: string | null; error?: string | null; usage?: Record<string, unknown> | null }
   | { kind: 'error'; message: string }
 
 /** Maps gateway events to the few turn events the UI needs; unknown events are ignored. */
@@ -24,7 +24,7 @@ export function toTurnEvent(e: GatewayEvent): TurnEvent | null {
     case 'tool.complete':
       return { kind: 'tool.complete', toolId: String(p.tool_id), name: String(p.name), summary: p.summary as string | null, durationS: p.duration_s as number | null, ...personalSite(p) }
     case 'message.complete':
-      return { kind: 'complete', text: typeof p.text === 'string' ? p.text : '', status: p.status as string | null, error: p.error as string | null }
+      return { kind: 'complete', text: typeof p.text === 'string' ? p.text : '', status: p.status as string | null, error: p.error as string | null, usage: (p.usage ?? null) as Record<string, unknown> | null }
     case 'error':
       return { kind: 'error', message: String(p.message ?? p.error ?? 'error') }
     default:

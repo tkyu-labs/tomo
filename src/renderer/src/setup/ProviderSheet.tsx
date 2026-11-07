@@ -61,7 +61,7 @@ export function ProviderSheet({ onClose, onConnect, gakuenAvailable }: {
     setError(null)
     if (login.event !== 'approved') { void window.tomo.cancelChatGptLogin(); setLogin({ event: 'idle' }) }
   }
-  const choice = (): ProviderChoice => ({ id: provider, model, reasoning: 'low', ...(provider === 'custom' ? { baseUrl: baseUrl.trim(), customKind } : {}) })
+  const choice = (): ProviderChoice => ({ id: provider, model, reasoning: provider === 'gakuen' ? 'default' : 'low', ...(provider === 'custom' ? { baseUrl: baseUrl.trim(), customKind } : {}) })
 
   const runTest = async () => {
     setTest({ state: 'testing' })

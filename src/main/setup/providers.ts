@@ -14,7 +14,8 @@ export const PROVIDER_KEY_ENV: Record<ProviderId, string | null> = {
   custom: 'TOMO_CUSTOM_API_KEY',
 }
 
-export const REASONING_EFFORT: Record<Reasoning, string> = { off: 'none', low: 'low', medium: 'medium', high: 'high' }
+// '' = no level: Hermes leaves it to the model (hermes_constants.parse_reasoning_effort)
+export const REASONING_EFFORT: Record<Reasoning, string> = { default: '', off: 'none', low: 'low', medium: 'medium', high: 'high' }
 
 /** `model` and `custom_providers` blocks of config.yaml for one selection. */
 export function providerConfig(sel: ProviderSelection): { model: Record<string, unknown>; custom_providers?: Record<string, unknown>[] } {

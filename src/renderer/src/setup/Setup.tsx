@@ -148,7 +148,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
               ? c('The key works, but GakuenAI listed no chat models.', 'Key 可用，但 GakuenAI 没有返回可用的对话模型。', 'キーは有効ですが、GakuenAI に利用できるチャットモデルがありません。')
               : c('Cannot reach GakuenAI. Check your network.', '无法连接 GakuenAI，请检查网络。', 'GakuenAI に接続できません。ネットワークを確認してください。'))
       }
-      await window.tomo.connectProvider({ id: 'gakuen', model: suggestModel(res.models), reasoning: 'low' }, gakuenKey.trim(), res.models)
+      await window.tomo.connectProvider({ id: 'gakuen', model: suggestModel(res.models), reasoning: 'default' }, gakuenKey.trim(), res.models)
       setGakuenKey('')
       await refresh()
     } catch (e) {

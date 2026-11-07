@@ -10,9 +10,11 @@ export interface AppInfo {
 
 export type Theme = 'light' | 'dark'
 export type MemoryTarget = 'user' | 'notes'
+export interface UsageSummary { month: string; usd: number | null; models: { model: string; tokens: { input: number; output: number; cacheRead: number }; usd: number | null }[] }
 export type UiScale = 'auto' | number
 export type ProviderId = 'gakuen' | 'openai' | 'openai-api' | 'openrouter' | 'deepseek' | 'custom'
-export type Reasoning = 'off' | 'low' | 'medium' | 'high'
+/** `default`: Tomo sets no level; the model / provider decides (GakuenAI's default). */
+export type Reasoning = 'default' | 'off' | 'low' | 'medium' | 'high'
 export type AnswerMode = 'direct' | 'chain'
 
 export interface ProviderChoice {
@@ -225,6 +227,8 @@ export interface TomoApi {
   setModel(model: string): Promise<void>
   setReasoning(level: Reasoning): Promise<void>
   /** What Tomo remembers: `user` = about the student (USER.md), `notes` = Tomo's own notes (MEMORY.md); placeholders kept */
+  /** GakuenAI: this month's spend, estimated with OpenRouter prices (no limit: the relay's is not known) */
+  gakuenUsage(): Promise<UsageSummary>
   userMemory(target?: MemoryTarget): Promise<string[]>
   /** Replace a memory file's entries (edited on screen with real values; stored as placeholders). Returns what was stored. */
   saveMemory(target: MemoryTarget, entries: string[]): Promise<string[]>
@@ -295,6 +299,7 @@ export const IPC = {
   setFallback: 'tomo:set-fallback',
   setReasoning: 'tomo:set-reasoning',
   userMemory: 'tomo:user-memory',
+  gakuenUsage: 'tomo:gakuen-usage',
   saveMemory: 'tomo:save-memory',
   restartEngine: 'tomo:restart-engine',
   diagnostics: 'tomo:diagnostics',

@@ -86,6 +86,16 @@ describe('answer modes and study log', () => {
   })
 })
 
+describe('usage for the GakuenAI estimate', () => {
+  it('message.complete carries the running token totals of the chat and the model', () => {
+    const done = events.map(([, e]) => e).filter((e) => e.kind === 'complete') as { usage?: Record<string, unknown> | null }[]
+    expect(done.length).toBeGreaterThan(0)
+    const u = done.at(-1)!.usage
+    expect(u?.model).toBe('stub-model')
+    expect(Number(u?.input) + Number(u?.output)).toBeGreaterThan(0)
+  })
+})
+
 describe('busy while a turn runs (closing with "Quit Tomo" asks first)', () => {
   it('is busy from send until the turn completes', async () => {
     const id = await ctl.createSession()

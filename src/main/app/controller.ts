@@ -24,6 +24,7 @@ import { listModels, setModel, setReasoning } from '../setup/model'
 import { personalConsent, privatePayload, refreshProfile, writeAnswerMode, writeConfig, writeProfile } from '../setup/profile'
 import { PROVIDER_KEY_ENV, providerConfig } from '../setup/providers'
 import { SettingsFile, type Settings } from './settings'
+import { UsageMeter, type UsageSummary } from './usage'
 import { StudyLog } from './study-log'
 import type { EngineInstaller } from '../engine/installer'
 import { ChatGptLogin, type LoginEvent } from './chatgpt-login'
@@ -86,6 +87,8 @@ export class AppController {
   private pendingRequests = new Map<string, Pending>()
   private requestSeq = 0
   readonly study: StudyLog
+  /** GakuenAI spend estimate (usage.json + a daily OpenRouter price cache in Tomo's folder) */
+  readonly usage: UsageMeter
   readonly packUpdater: PackUpdater
   /** A pack update was installed while a question was running: restart the engine when it ends. */
   private reloadPending = false
@@ -111,6 +114,7 @@ export class AppController {
       tomoVersion: opts.appVersion ?? '0.0.0',
       ...opts.packUpdates,
     })
+    this.usage = new UsageMeter(opts.paths.data)
     this.study = new StudyLog(join(opts.paths.data, 'study', 'log.jsonl'), participant, () => {
       const s = this.settings.read()
       return { mode: s.answerMode, pack: s.packId ?? null, appVersion: opts.appVersion, model: s.provider ? `${s.provider.id}/${s.provider.model}` : null }
@@ -208,7 +212,13 @@ export class AppController {
 
   async listProviderModels(choice: ProviderChoice, key: string) {
     const sel = choice.id === 'gakuen' ? { ...choice, baseUrl: this.gakuenUrl() } : choice
-    return listProviderModels(sel, key)
+    const res = await listProviderModels(sel, key)
+    // GakuenAI: OpenAI models only, and only those with an OpenRouter price (the spend estimate needs it)
+    if (choice.id === 'gakuen' && res.ok && res.models) {
+      const priced = (await Promise.all(res.models.map(async (m) => ((await this.usage.price(m)) ? m : null)))).filter((m): m is string => !!m)
+      return priced.length ? { ...res, models: priced } : res
+    }
+    return res
   }
 
   private login = new ChatGptLogin()
@@ -583,12 +593,28 @@ export class AppController {
     }
     const ev = toTurnEvent(e)
     if (!ev) return
+    if (ev.kind === 'complete') this.recordUsage(raw.session_id, ev.usage)
     if (ev.kind === 'complete' || ev.kind === 'error') {
       this.runningTurns.delete(raw.session_id)
       if (this.reloadPending && this.runningTurns.size === 0) setTimeout(() => void this.reloadEngineWhenIdle(), 500)
     }
     this.study.event(raw.session_id, ev)
     this.opts.emit.chat(raw.session_id, ev)
+  }
+
+  /** GakuenAI turns only (a fallback answer comes from another provider's model and is not counted). */
+  private recordUsage(sessionId: string, usage: Record<string, unknown> | null | undefined): void {
+    const s = this.settings.read()
+    if (s.provider?.id !== 'gakuen' || !usage) return
+    const gakuen = connectionsOf(s).find((c) => c.id === 'gakuen')
+    const model = typeof usage.model === 'string' ? usage.model : ''
+    if (model !== s.provider.model && !gakuen?.models?.includes(model)) return
+    try { this.usage.record(sessionId, usage) } catch { /* the estimate must never break a chat */ }
+  }
+
+  /** Settings → Model & usage: this month's GakuenAI spend, estimated with OpenRouter prices. */
+  gakuenUsage(): Promise<UsageSummary> {
+    return this.usage.summary()
   }
 
   // ------------------------------------------------------------------ server → client requests
@@ -690,11 +716,16 @@ export class AppController {
   }
 
   async setReasoning(level: Reasoning): Promise<void> {
-    await setReasoning(this.hermes!.rpc, level)
+    // Hermes' config.set refuses an empty level, so "default" is written into config.yaml (applies from the next chat)
+    if (level !== 'default') await setReasoning(this.hermes!.rpc, level)
     this.settings.update((st) => {
       st.provider = { ...st.provider!, reasoning: level }
       st.connections = connectionsOf(st).map((c) => (c.id === st.provider!.id ? { ...c, reasoning: level } : c))
     })
+    if (level === 'default') {
+      const s = this.settings.read()
+      writeConfig(this.opts.paths.hermesHome, s.provider!, fallbackSelection(s), this.installedPack(s))
+    }
   }
 
   /** Hermes' memory files: USER.md (about the student) and MEMORY.md (Tomo's own notes). Entries keep placeholders. */

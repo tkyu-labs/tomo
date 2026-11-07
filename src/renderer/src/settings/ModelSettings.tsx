@@ -1,7 +1,7 @@
 // Settings → Model & usage: the provider in use, its model and thinking level, the fallback (on by default with a
 // second connection) and the connected providers. Changing providers rewrites Hermes' config and restarts the engine.
 import { useEffect, useState } from 'react'
-import type { AppState, Connection, FallbackChoice, ModelList, ProviderId, Reasoning } from '@shared/ipc'
+import type { AppState, Connection, FallbackChoice, ModelList, ProviderId, Reasoning, UsageSummary } from '@shared/ipc'
 import { useCopy } from '../i18n'
 import { providerLabel, ProviderSheet, suggestModel } from '../setup/ProviderSheet'
 import { Icon } from '../ui/Icon'
@@ -20,12 +20,15 @@ export function ModelSettings({ state, busy, run }: { state: AppState; busy: str
   const fbConn = fb ? others.find((x) => x.id === fb.id) : undefined
 
   useEffect(() => { if (ready) void window.tomo.listModels().then(setModels).catch(() => setModels(null)) }, [ready, active?.id])
+  const [usage, setUsage] = useState<UsageSummary | null>(null)
+  useEffect(() => { if (active?.id === 'gakuen') void window.tomo.gakuenUsage().then(setUsage).catch(() => setUsage(null)) }, [active?.id])
+  const usd = (v: number) => (v > 0 && v < 0.01 ? '< $0.01' : `$${v.toFixed(2)}`)
 
   const name = (id: ProviderId) => (id === 'custom' ? c('Custom endpoint', '自定义接口', 'カスタムエンドポイント') : providerLabel(id))
   const modelsOf = (x: Connection) => (x.models?.length ? x.models : [x.model])
   const recommended = (list: string[]) => suggestModel(list)
   const applying = c('Saved. The AI engine restarted with the new setting.', '已保存，AI 引擎已按新设置重启。', '保存しました。新しい設定で AI エンジンを再起動しました。')
-  const levels: [Reasoning, string][] = [['off', c('Off', '关闭', 'オフ')], ['low', c('Low', '低', '低')], ['medium', c('Medium', '中', '中')], ['high', c('High', '高', '高')]]
+  const levels: [Reasoning, string][] = [['default', c('Default', '默认', 'デフォルト')], ['off', c('Off', '关闭', 'オフ')], ['low', c('Low', '低', '低')], ['medium', c('Medium', '中', '中')], ['high', c('High', '高', '高')]]
   const setFallback = (f: FallbackChoice | null) => void run('fallback', () => window.tomo.setFallback(f), applying)
 
   return (
@@ -56,6 +59,19 @@ export function ModelSettings({ state, busy, run }: { state: AppState; busy: str
             ))}
           </div>
         </div>
+        {active?.id === 'gakuen' && (
+          <div className="setting-row" data-testid="gakuen-usage">
+            <div>
+              <strong>{c('This month (estimate)', '本月用量（估算）', '今月の利用額（概算）')}</strong>
+              <span>{c(
+                "Worked out from the tokens Tomo used and OpenRouter's list price for the same model; GakuenAI's own figure may differ.",
+                '按 Tomo 用掉的 token 数和 OpenRouter 上同一模型的标价估算，GakuenAI 的实际计费可能不同。',
+                'Tomo が使ったトークン数と OpenRouter の同じモデルの定価から計算した概算です。GakuenAI の実際の請求額とは異なることがあります。',
+              )}</span>
+            </div>
+            <strong className="usage-amount" data-testid="gakuen-usage-amount">{usage === null ? '…' : usage.usd === null ? '—' : `≈ ${usd(usage.usd)}`}</strong>
+          </div>
+        )}
       </section>
 
       {active && (

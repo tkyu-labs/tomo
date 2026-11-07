@@ -96,3 +96,4 @@ html[data-platform="darwin"] .hatch-brand > * { -webkit-app-region: no-drag; }
 .memory-edit { flex: 1; min-height: 64px; padding: 8px 10px; font: inherit; font-size: 14px; resize: vertical; }
 .memory-forget { display: flex; justify-content: flex-end; margin-top: 14px; }
 [data-testid=memory] .settings-section + .settings-section { margin-top: 14px; }
+.setting-row .usage-amount { flex: none; font-size: 15px; font-variant-numeric: tabular-nums; }

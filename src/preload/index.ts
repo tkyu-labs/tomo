@@ -55,6 +55,7 @@ const api: TomoApi = {
   onPackUpdate: (cb) => listen(IPC.packUpdateEvent, cb),
   setReasoning: invoke(IPC.setReasoning) as TomoApi['setReasoning'],
   userMemory: invoke(IPC.userMemory) as TomoApi['userMemory'],
+  gakuenUsage: invoke(IPC.gakuenUsage) as TomoApi['gakuenUsage'],
   saveMemory: invoke(IPC.saveMemory) as TomoApi['saveMemory'],
   restartEngine: invoke(IPC.restartEngine) as TomoApi['restartEngine'],
   diagnostics: invoke(IPC.diagnostics) as TomoApi['diagnostics'],

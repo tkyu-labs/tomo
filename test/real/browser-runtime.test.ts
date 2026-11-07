@@ -17,7 +17,7 @@ describe.skipIf(!process.env.TOMO_NETWORK_TESTS)('browser runtime install', () =
       const ctl = new AppController({
         paths: tomoPaths(join(dir, 'data')), runtime: devRuntime(repoRoot),
         encryptor: { isAvailable: () => true, encrypt: (s) => Buffer.from(s), decrypt: (b) => b.toString() },
-        packsSourceDir: join(repoRoot, 'test/fixtures/packs'), pluginsDir: join(repoRoot, 'plugins'),
+        remotePacks: async () => join(repoRoot, 'test/fixtures/packs'), pluginsDir: join(repoRoot, 'plugins'),
         baseEnv: { PATH: process.env.PATH, HOME: join(dir, 'home'), TMPDIR: process.env.TMPDIR },
         emit: { chat: () => {}, request: () => {}, setupTask: () => {}, engineState: () => {} },
       })

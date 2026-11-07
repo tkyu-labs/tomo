@@ -25,7 +25,7 @@ beforeAll(async () => {
     paths: tomoPaths(join(dir, 'data')),
     runtime: devRuntime(repoRoot),
     encryptor: { isAvailable: () => true, encrypt: (s) => xor(Buffer.from(s)), decrypt: (b) => xor(b).toString() },
-    packsSourceDir: join(repoRoot, 'test/fixtures/packs'),
+    remotePacks: async () => join(repoRoot, 'test/fixtures/packs'), // stands in for tomo-packs main
     pluginsDir: join(repoRoot, 'plugins'),
     runtimeDir: join(repoRoot, '.dev', 'home', 'tools'),
     baseEnv: { PATH: process.env.PATH, HOME: join(dir, 'home'), TMPDIR: process.env.TMPDIR },

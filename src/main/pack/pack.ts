@@ -32,19 +32,6 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
-/**
- * Engine start in development and tests: the pack in the local packs folder replaces the installed copy when it is the
- * same or a newer version, so pack edits apply after a restart. A newer installed pack is kept. (The app ships no
- * packs; installed apps update from tomo-packs main.)
- */
-export function refreshBundledPack(sourceDir: string, dataDir: string, id: string): boolean {
-  const source = join(sourceDir, id)
-  const target = join(dataDir, 'packs', id)
-  if (!existsSync(join(source, 'pack.yaml'))) return false
-  if (existsSync(join(target, 'pack.yaml')) && compareVersions(loadPack(source).manifest.version, loadPack(target).manifest.version) < 0) return false
-  installPack(source, dataDir)
-  return true
-}
 
 export function installPack(sourceDir: string, dataDir: string): LoadedPack {
   const source = loadPack(sourceDir)

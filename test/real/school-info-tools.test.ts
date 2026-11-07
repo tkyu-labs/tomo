@@ -33,7 +33,7 @@ describe.skipIf(!NET)('school-info tool chain', () => {
       paths: tomoPaths(join(dir, 'data')),
       runtime: devRuntime(repoRoot),
       encryptor: { isAvailable: () => true, encrypt: (s) => xor(Buffer.from(s)), decrypt: (b) => xor(b).toString() },
-      packsSourceDir: join(repoRoot, 'test/fixtures/packs'),
+      remotePacks: async () => join(repoRoot, 'test/fixtures/packs'), // stands in for tomo-packs main
       pluginsDir: join(repoRoot, 'plugins'),
       runtimeDir: join(repoRoot, '.dev', 'home', 'tools'),
       baseEnv: { PATH: process.env.PATH, HOME: join(dir, 'home'), TMPDIR: process.env.TMPDIR, SystemRoot: process.env.SystemRoot, USERPROFILE: join(dir, 'home') },
@@ -41,6 +41,7 @@ describe.skipIf(!NET)('school-info tool chain', () => {
       emit: { chat: (s, e) => events.push([s, e]), request: (r) => { requests.push(r); ctl.respond(r.id, { approved: false }) }, setupTask: () => {}, engineState: () => {} },
     })
     ctl.connectProvider({ id: 'custom', model: 'stub-model', baseUrl: stub.url }, 'stub-key')
+    await ctl.listPacks()
     ctl.selectPack('example-u')
     expect(await ctl.finishSetup({ full_name: { name: 'Lin Mei', furigana: 'リン メイ' }, student_number: '23B0001', faculty: 'B', year: 3 })).toEqual({ ok: true })
     ctl.completeSetup()

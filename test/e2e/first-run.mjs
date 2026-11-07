@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path'
 import { launchApp } from './cdp.mjs'
 import { SCAN } from './audit.mjs'
 import { startStubModel } from '../stub-model/server.mjs'
+import { startPackMirror } from '../helpers/pack-mirror.mjs'
 import { removeDir } from '../helpers/remove-dir.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
@@ -25,15 +26,17 @@ async function mainEval(expression) {
 }
 const stub = await startStubModel({ port: Number(process.env.TOMO_E2E_STUB_PORT) || 0 })
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-// TOMO_E2E_APP: run an installed app binary instead (packs also from the local tomo-packs checkout, so a pack being
-// changed is tested before it is on main); TOMO_E2E_PACK: pack to pick.
+// TOMO_E2E_APP: run an installed app binary instead; TOMO_E2E_PACK: pack to pick. Tomo reads packs only from the
+// network: a local mirror serves the fixture packs (with a packaged app: the local tomo-packs checkout, so a pack being
+// changed is tested before it is on main).
 const PACK = process.env.TOMO_E2E_PACK ?? 'example-u'
+const packMirror = await startPackMirror(join(root, process.env.TOMO_E2E_APP ? 'tomo-packs/packs' : 'test/fixtures/packs'))
 // TOMO_E2E_PORTABLE=<password>: portable mode (data in <root>/Data, secrets protected by this password)
 const PORTABLE = process.env.TOMO_E2E_PORTABLE ?? ''
 const app = await launchApp({
   executable: process.env.TOMO_E2E_APP,
   // GakuenAI offered (release builds bake its URL in; here the stub stands in for it)
-  env: { TOMO_DATA_DIR: data, TOMO_GAKUEN_URL: stub.url, ...(PORTABLE ? { TOMO_PORTABLE_ROOT: data } : {}), TOMO_PACKS_DIR: join(root, process.env.TOMO_E2E_APP ? 'tomo-packs/packs' : 'test/fixtures/packs') },
+  env: { TOMO_DATA_DIR: data, TOMO_GAKUEN_URL: stub.url, ...(PORTABLE ? { TOMO_PORTABLE_ROOT: data } : {}), TOMO_MIRROR_URL: packMirror.url },
   args: ['--use-mock-keychain', `--inspect=${INSPECT}`],
 })
 const $ = (sel) => `document.querySelector(${JSON.stringify(sel)})`
@@ -130,6 +133,7 @@ try {
   await next() // pack
   await click(`[data-testid=pack-${PACK}]`)
   // the ring has a short transition: wait for it instead of reading it mid-way (slow PCs)
+  report.packsFromMirror = packMirror.requests.some((u) => u.endsWith('.tar.gz'))
   report.packSelected = await app.waitFor(`(() => { const el = document.querySelector('[data-testid=pack-${PACK}]'); const check = el.querySelector('.pack-check'); return el.getAttribute('aria-checked') === 'true' && getComputedStyle(check).display !== 'none' && getComputedStyle(el).boxShadow.includes('47, 111, 235)') })()`, 5000).then(() => true, () => false)
   if (!report.packSelected) report.packSelectedSeen = await app.evaluate(`(() => { const el = document.querySelector('[data-testid=pack-${PACK}]'); return el && { checked: el.getAttribute('aria-checked'), check: getComputedStyle(el.querySelector('.pack-check')).display, ring: getComputedStyle(el).boxShadow } })()`)
   await audit('en:pack')
@@ -237,7 +241,7 @@ try {
   }
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = report.gakuenField && report.gakuenNoCredit && !report.testerWording && report.sheetOrder === 'openai,openai-api,openrouter,deepseek,custom' && report.gakuenEye?.join() === 'text:true:eye-slash,password:false:eye' && (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && (REAL || (report.removeDialog && report.generalHatch === 'About you' && report.afterRemove?.pack === null && !report.afterRemove.hatchPending && report.afterRemove.memory.length === 2 && report.afterRemove.memory[1].startsWith('The user skipped'))) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.packsFromMirror && report.gakuenField && report.gakuenNoCredit && !report.testerWording && report.sheetOrder === 'openai,openai-api,openrouter,deepseek,custom' && report.gakuenEye?.join() === 'text:true:eye-slash,password:false:eye' && (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && (REAL || (report.removeDialog && report.generalHatch === 'About you' && report.afterRemove?.pack === null && !report.afterRemove.hatchPending && report.afterRemove.memory.length === 2 && report.afterRemove.memory[1].startsWith('The user skipped'))) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {
@@ -247,5 +251,6 @@ try {
 } finally {
   await app.close()
   await stub.close()
+  await packMirror.close()
   if (!process.env.TOMO_E2E_DATA) removeDir(data)
 }

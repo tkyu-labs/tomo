@@ -26,10 +26,11 @@ Downloads go to Tomo's mirror first (`https://tomo.gakuen.ac/downloads`: app upd
 (`src/main/net/sources.ts`; `TOMO_MIRROR_URL` points elsewhere, an empty value skips the mirror). Checks never depend
 on the mirror: pinned SHA-256 for Hermes, `pack.lock` for packs, `sha512` in `latest*.yml` for app updates.
 
-School packs are not part of the app. Tomo reads the list of packs from tomo-packs `main` during the first run,
-downloads the chosen one and updates it from `main` later (`src/main/pack/remote.ts`: catalog `lock_sha256`, every
-file checked against `pack.lock`). Development and tests use a local folder instead: `TOMO_PACKS_DIR` (default in
-development: the nested `tomo-packs/packs` checkout, else `test/fixtures/packs`).
+School packs are not part of the app and Tomo never reads them from a local folder, in development either: the
+pack choice reads tomo-packs `main` (through the mirror), downloads the chosen pack and updates it from `main` later
+(`src/main/pack/remote.ts`: catalog `lock_sha256`, every file checked against `pack.lock`). To try a pack change in
+Tomo, merge it into `main` (and sync the mirror). e2e tests serve fixture packs from a local stand-in mirror
+(`test/helpers/pack-mirror.mjs`, `TOMO_MIRROR_URL`).
 
 ## Tester builds with GakuenAI
 

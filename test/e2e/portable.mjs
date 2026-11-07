@@ -28,7 +28,7 @@ report.keyFile = existsSync(join(data, 'secret-key.json')) && !readFileSync(join
 report.storeEncrypted = existsSync(join(data, 'secrets.bin')) && !readFileSync(join(data, 'secrets.bin')).includes('stub-key')
 
 const stub = await startStubModel({ port: STUB_PORT })
-const env = { TOMO_DATA_DIR: data, TOMO_PORTABLE_ROOT: data, TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }
+const env = { TOMO_DATA_DIR: data, TOMO_PORTABLE_ROOT: data }
 const setInput = (app, sel, v) => app.evaluate(`(() => { const el = document.querySelector('${sel}'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el, ${JSON.stringify(v)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true })()`)
 const unlock = async (app, pw) => {
   await setInput(app, '[data-testid=unlock-password]', pw)

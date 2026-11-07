@@ -32,14 +32,6 @@ const appIconDir = isDev ? join(appRoot, 'build-resources') : process.resourcesP
 app.setPath('userData', join(dataDir, 'electron'))
 app.setPath('sessionData', join(dataDir, 'electron'))
 
-/** A local packs folder for development and tests only; the app itself ships no packs (they come from tomo-packs main). */
-function packsSourceDir(): string | undefined {
-  if (process.env.TOMO_PACKS_DIR) return process.env.TOMO_PACKS_DIR
-  if (!isDev) return undefined
-  const checkout = join(appRoot, 'tomo-packs', 'packs')
-  return existsSync(checkout) ? checkout : join(appRoot, 'test', 'fixtures', 'packs')
-}
-
 // One Tomo per data folder: starting it again brings the running window back (Electron keys the lock on userData).
 const primaryInstance = app.requestSingleInstanceLock()
 if (!primaryInstance) app.exit(0)
@@ -69,7 +61,6 @@ const controller = new AppController({
     encrypt: (plain) => safeStorage.encryptString(plain),
     decrypt: (data) => safeStorage.decryptString(data),
   },
-  packsSourceDir: packsSourceDir(),
   // the first-run choice lists what tomo-packs main has now (Tomo's mirror first, GitHub second)
   remotePacks: () => fetchCatalogPacks(paths.data, app.getVersion()),
   pluginsDir: isDev ? join(appRoot, 'plugins') : join(process.resourcesPath, 'plugins'),

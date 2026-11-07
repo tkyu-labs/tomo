@@ -42,7 +42,7 @@ async function mainEval(expression) {
 async function busyTomo() {
   const app = await launchApp({
     executable: process.env.TOMO_E2E_APP,
-    env: { TOMO_DATA_DIR: data, ...(process.env.TOMO_E2E_APP ? {} : { TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }) },
+    env: { TOMO_DATA_DIR: data },
     args: ['--use-mock-keychain', `--inspect=${INSPECT}`],
   })
   await app.waitFor(`window.tomo.getState().then((s) => s.engine.state === 'ready')`, 120_000)

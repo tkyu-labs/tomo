@@ -14,7 +14,7 @@ import { HermesClient, toTurnEvent } from '../hermes/client'
 import { buildHermesEnv } from '../hermes/env'
 import { HermesProcess, type HermesRuntime } from '../hermes/process'
 import type { GatewayEvent } from '../hermes/rpc'
-import { compareVersions, installPack, loadPack, refreshBundledPack, type LoadedPack } from '../pack/pack'
+import { installPack, loadPack, type LoadedPack } from '../pack/pack'
 import { PackUpdater, type PackUpdaterOptions } from '../pack/updater'
 import type { TomoPaths } from '../paths'
 import { SecretStore, type Encryptor } from '../secrets/store'
@@ -37,9 +37,7 @@ export interface ControllerOptions {
   runtime?: HermesRuntime
   engine?: EngineInstaller
   encryptor: Encryptor
-  /** Development and tests: a local folder of `packs/<id>` directories. The app ships no packs. */
-  packsSourceDir?: string
-  /** Every pack tomo-packs main has, for the first-run choice (returns a folder of `<id>` dirs). */
+  /** The packs tomo-packs main has now (returns a folder of `<id>` dirs). Tomo never reads packs from anywhere else. */
   remotePacks?: () => Promise<string>
   /** Folder holding Tomo's Hermes plugins (`plugins/tomo-privacy`, …). */
   pluginsDir: string
@@ -174,40 +172,33 @@ export class AppController {
   }
 
   // ------------------------------------------------------------------ first run
-  /** Where each pack offered by the last listPacks() comes from (the copy fetched from tomo-packs main, or a local dev folder). */
+  /** Where each pack offered by the last listPacks() was downloaded to. */
   private packSources = new Map<string, string>()
 
   /**
-   * The packs a student can choose: what tomo-packs main has now (Tomo ships no packs, so a new school needs no Tomo
-   * update), plus a local folder in development and tests (the newer version wins). `offline`: main could not be read
-   * (no network, or nothing after 15 s); the student can try again or continue without a pack.
+   * The packs a student can choose: what tomo-packs main has now, always from the network (Tomo, in development too,
+   * never reads packs from a local folder, so a new school needs no Tomo update). `offline`: main could not be read (no
+   * network, or nothing after 15 s); the student can try again or continue without a pack.
    */
   async listPacks(): Promise<PackList> {
-    const found = new Map<string, LoadedPack>()
-    const addFrom = (dir: string) => {
-      if (!existsSync(dir)) return
+    const packs: LoadedPack[] = []
+    let offline = false
+    try {
+      if (!this.opts.remotePacks) throw new Error('no pack source')
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15_000).unref?.())
+      const dir = await Promise.race([this.opts.remotePacks(), timeout])
       for (const d of readdirSync(dir, { withFileTypes: true })) {
         if (!d.isDirectory() || !existsSync(join(dir, d.name, 'pack.yaml'))) continue
-        try {
-          const p = loadPack(join(dir, d.name))
-          const have = found.get(p.manifest.id)
-          if (!have || compareVersions(p.manifest.version, have.manifest.version) > 0) found.set(p.manifest.id, p)
-        } catch { /* a pack this Tomo cannot read is not offered */ }
+        try { packs.push(loadPack(join(dir, d.name))) } catch { /* a pack this Tomo cannot read is not offered */ }
       }
-    }
-    if (this.opts.packsSourceDir) addFrom(this.opts.packsSourceDir)
-    let offline = false
-    if (this.opts.remotePacks) {
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15_000).unref?.())
-      try { addFrom(await Promise.race([this.opts.remotePacks(), timeout])) } catch { offline = true }
-    }
-    this.packSources = new Map([...found].map(([id, p]) => [id, p.dir]))
-    return { packs: [...found.values()].map((p) => ({ id: p.manifest.id, manifest: p.manifest, hatch: p.hatch })), ...(offline ? { offline } : {}) }
+    } catch { offline = true }
+    this.packSources = new Map(packs.map((p) => [p.manifest.id, p.dir]))
+    return { packs: packs.map((p) => ({ id: p.manifest.id, manifest: p.manifest, hatch: p.hatch })), ...(offline ? { offline } : {}) }
   }
 
   selectPack(id: string | null): void {
     if (id) {
-      const source = this.packSources.get(id) ?? (this.opts.packsSourceDir && join(this.opts.packsSourceDir, id))
+      const source = this.packSources.get(id)
       if (!source || !existsSync(join(source, 'pack.yaml'))) throw new Error(`The school pack ${id} is not available. Check the network and try again.`)
       installPack(source, this.opts.paths.data)
     }
@@ -525,9 +516,6 @@ export class AppController {
     if (Object.keys(moved).length) this.secrets.update((d) => { Object.assign(d.keys, moved) })
     const secrets = this.secrets.read()
     this.masker = new Masker(secrets.identifiers)
-    const packId = this.settings.read().packId
-    // development / tests: edits in the local packs folder reach the installed copy (the app updates from main instead)
-    if (packId && this.opts.packsSourceDir) { try { refreshBundledPack(this.opts.packsSourceDir, this.opts.paths.data, packId) } catch { /* keep the installed copy */ } }
     const pack = this.installedPack()
     if (this.settings.read().setupDone) refreshProfile(this.opts.paths.hermesHome, this.opts.pluginsDir, pack, secrets.identifiers.map((i) => i.name))
     const browsers = (await import('./browsers')).findBrowsers(process.platform, this.opts.baseEnv.HOME ?? '', this.opts.baseEnv)

@@ -28,13 +28,14 @@ beforeAll(async () => {
     paths: tomoPaths(join(dir, 'data')),
     runtime: devRuntime(repoRoot),
     encryptor: { isAvailable: () => true, encrypt: (s) => xor(Buffer.from(s)), decrypt: (b) => xor(b).toString() },
-    packsSourceDir: join(repoRoot, 'test/fixtures/packs'),
+    remotePacks: async () => join(repoRoot, 'test/fixtures/packs'), // stands in for tomo-packs main
     pluginsDir: join(repoRoot, 'plugins'),
     runtimeDir: join(repoRoot, '.dev', 'home', 'tools'), // reuse the dev agent-browser (no download in tests)
     baseEnv: { PATH: process.env.PATH, HOME: join(dir, 'home'), TMPDIR: process.env.TMPDIR },
     emit: { chat: (s, e) => events.push([s, e]), request: () => {}, setupTask: (u) => tasks.push(u), engineState: () => {} },
   })
   ctl.connectProvider({ id: 'custom', model: 'stub-model', baseUrl: stub.url }, 'stub-key')
+  await ctl.listPacks()
   ctl.selectPack('example-u')
   const res = await ctl.finishSetup({ full_name: { name: 'Lin Mei', furigana: 'リン メイ' }, student_number: '23B0001', faculty: 'B', year: 3 })
   expect(res).toEqual({ ok: true })
@@ -104,12 +105,12 @@ describe('pack choice from tomo-packs main (Tomo ships no packs)', () => {
       const f = join(remote, id, 'pack.yaml')
       writeFileSync(f, readFileSync(f, 'utf8').replace(/^id: .*$/m, `id: ${id}`).replace(/^version: .*$/m, `version: ${version}`))
     }
-    const make = (remotePacks?: () => Promise<string>, packsSourceDir?: string) => new AppController({
+    const make = (remotePacks?: () => Promise<string>) => new AppController({
       paths: tomoPaths(join(dir, 'choice')), runtime: devRuntime(repoRoot), encryptor: { isAvailable: () => true, encrypt: (s) => Buffer.from(s), decrypt: (b) => b.toString() },
-      packsSourceDir, pluginsDir: join(repoRoot, 'plugins'), baseEnv: {}, remotePacks,
+      pluginsDir: join(repoRoot, 'plugins'), baseEnv: {}, remotePacks,
       emit: { chat: () => {}, request: () => {}, setupTask: () => {}, engineState: () => {} },
     })
-    // the app: no local folder, everything from main
+    // everything from main (never a local folder)
     const app = make(async () => remote)
     const list = await app.listPacks()
     expect(list.offline).toBeUndefined()
@@ -120,8 +121,5 @@ describe('pack choice from tomo-packs main (Tomo ships no packs)', () => {
     const offline = make(async () => { throw new Error('offline') })
     expect(await offline.listPacks()).toEqual({ packs: [], offline: true })
     expect(() => offline.selectPack('new-u')).toThrow(/not available/)
-    // development: a local folder next to main, the newer version wins
-    const dev = make(async () => remote, join(repoRoot, 'test/fixtures/packs'))
-    expect((await dev.listPacks()).packs.find((p) => p.id === 'example-u')?.manifest.version).toBe('0.9.0')
   })
 })

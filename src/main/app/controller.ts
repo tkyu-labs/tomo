@@ -1,12 +1,12 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type {
-  AppState, AnswerMode, ChatEvent, Connection, EngineProgress, EngineRequest, FallbackChoice, FinishTask, HistoryMessage, PackList, Prefs,
+  AppState, AnswerMode, ChatEvent, Connection, EngineProgress, EngineRequest, FallbackChoice, FinishTask, HistoryMessage, MemoryTarget, PackList, Prefs,
   MigrationState, MigrationTask, PackUpdateMode, PackUpdateState, ProviderChoice, ProviderId,
   Reasoning, SessionRow, TaskUpdate,
 } from '@shared/ipc'
-import { identifiersFrom } from '@shared/pack/hatch'
+import { USER_MD_SEPARATOR, identifiersFrom, renderUserMd } from '@shared/pack/hatch'
 import { activeHatch } from '@shared/pack/core-hatch'
 import type { Answers, Lang } from '@shared/pack/types'
 import { Masker } from '@shared/privacy/masker'
@@ -697,10 +697,28 @@ export class AppController {
     })
   }
 
-  userMemory(): string[] {
-    const file = join(this.opts.paths.hermesHome, 'memories', 'USER.md')
+  /** Hermes' memory files: USER.md (about the student) and MEMORY.md (Tomo's own notes). Entries keep placeholders. */
+  private memoryFile(target: MemoryTarget): string {
+    return join(this.opts.paths.hermesHome, 'memories', target === 'user' ? 'USER.md' : 'MEMORY.md')
+  }
+
+  userMemory(target: MemoryTarget = 'user'): string[] {
+    const file = this.memoryFile(target)
     if (!existsSync(file)) return []
-    return readFileSync(file, 'utf8').split('\n§\n').map((e) => e.trim()).filter(Boolean)
+    return readFileSync(file, 'utf8').split(USER_MD_SEPARATOR).map((e) => e.trim()).filter(Boolean)
+  }
+
+  /**
+   * The student edited or deleted memory (Settings → Memory). The screen shows real values; they become placeholders
+   * again before anything is written. Hermes reads memory when a chat starts, so the change applies from the next chat
+   * (an open chat keeps its snapshot; Hermes re-reads the file under its own lock before it writes, so nothing is lost).
+   */
+  saveMemory(target: MemoryTarget, entries: string[]): string[] {
+    const masked = entries.map((e) => this.masker.mask(e).trim()).filter(Boolean)
+    const file = this.memoryFile(target)
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, masked.length ? renderUserMd(masked) : '')
+    return masked
   }
 
   /** Export: settings (no secrets), what Tomo remembers, and the chat list — identifiers stay placeholders. */

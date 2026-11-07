@@ -91,3 +91,8 @@ html[data-platform="darwin"] .hatch-brand > * { -webkit-app-region: no-drag; }
 :root[data-theme="dark"] .setting-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23A1A1A6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
+
+/* Memory page: inline edit, and the "Forget everything" action below the lists */
+.memory-edit { flex: 1; min-height: 64px; padding: 8px 10px; font: inherit; font-size: 14px; resize: vertical; }
+.memory-forget { display: flex; justify-content: flex-end; margin-top: 14px; }
+[data-testid=memory] .settings-section + .settings-section { margin-top: 14px; }

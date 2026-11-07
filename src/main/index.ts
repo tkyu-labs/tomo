@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, screen, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { IPC, type AppInfo, type FallbackChoice, type PackUpdateMode, type ProviderChoice, type ProviderId } from '@shared/ipc'
+import { IPC, type AppInfo, type FallbackChoice, type MemoryTarget, type PackUpdateMode, type ProviderChoice, type ProviderId } from '@shared/ipc'
 import { localeFromTag } from '@shared/locale'
 import { AppController } from './app/controller'
 import { Updater } from './app/updater'
@@ -237,7 +237,8 @@ handle(IPC.checkPackUpdate, () => controller.packUpdater.check())
 handle(IPC.installPackUpdate, () => controller.packUpdater.install())
 handle(IPC.setPackUpdateMode, (m: PackUpdateMode) => controller.setPackUpdateMode(m))
 handle(IPC.setReasoning, (l: Parameters<AppController['setReasoning']>[0]) => controller.setReasoning(l))
-handle(IPC.userMemory, () => controller.userMemory())
+handle(IPC.userMemory, (target?: MemoryTarget) => controller.userMemory(target))
+handle(IPC.saveMemory, (target: MemoryTarget, entries: string[]) => controller.saveMemory(target, entries))
 handle(IPC.restartEngine, () => controller.startEngine(true))
 handle(IPC.diagnostics, () => controller.diagnostics())
 handle(IPC.updateStatus, () => updater.status)

@@ -9,6 +9,7 @@ export interface AppInfo {
 }
 
 export type Theme = 'light' | 'dark'
+export type MemoryTarget = 'user' | 'notes'
 export type UiScale = 'auto' | number
 export type ProviderId = 'gakuen' | 'openai' | 'openai-api' | 'openrouter' | 'deepseek' | 'custom'
 export type Reasoning = 'off' | 'low' | 'medium' | 'high'
@@ -223,7 +224,10 @@ export interface TomoApi {
   setFallback(choice: FallbackChoice | null): Promise<void>
   setModel(model: string): Promise<void>
   setReasoning(level: Reasoning): Promise<void>
-  userMemory(): Promise<string[]>
+  /** What Tomo remembers: `user` = about the student (USER.md), `notes` = Tomo's own notes (MEMORY.md); placeholders kept */
+  userMemory(target?: MemoryTarget): Promise<string[]>
+  /** Replace a memory file's entries (edited on screen with real values; stored as placeholders). Returns what was stored. */
+  saveMemory(target: MemoryTarget, entries: string[]): Promise<string[]>
   restartEngine(): Promise<void>
   diagnostics(): Promise<string>
   exportData(): Promise<string | null>
@@ -291,6 +295,7 @@ export const IPC = {
   setFallback: 'tomo:set-fallback',
   setReasoning: 'tomo:set-reasoning',
   userMemory: 'tomo:user-memory',
+  saveMemory: 'tomo:save-memory',
   restartEngine: 'tomo:restart-engine',
   diagnostics: 'tomo:diagnostics',
   exportData: 'tomo:export-data',

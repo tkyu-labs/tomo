@@ -1,10 +1,11 @@
 // Engine request dialogs without screenshots: requests are injected from the main process (Node inspector, test only)
 // and the DOM is checked: the personal-data send approval (preview + "Don't send / Send to AI") and clarify with
 // choices, without choices (yes/no fallback buttons) and an open question (text field only).
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchApp } from './cdp.mjs'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const data = mkdtempSync(join(tmpdir(), 'tomo-dialogs-'))
@@ -38,7 +39,7 @@ try {
   await sleep(400); report.open = await dialog(); await close()
 } finally {
   await app.close()
-  rmSync(data, { recursive: true, force: true })
+  removeDir(data)
 }
 console.log(JSON.stringify(report, null, 2))
 const ok = report.send?.kind === 'send' && report.send.preview?.includes('{{FULL_NAME}}') && report.send.preview.includes('3.12') && report.send.buttons.join('|') === "Don't send|Send to AI"

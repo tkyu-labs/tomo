@@ -1,14 +1,15 @@
 // The real tomo-packs main branch: the commit and catalog, the source archive, and every file of the shonan-it pack
 // checked against its pack.lock. Needs network. Run: TOMO_NET_TESTS=1 npx vitest run test/real/pack-remote.test.ts
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { lockDigest, remotePack, stageRemotePack } from '../../src/main/pack/remote'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const NET = !!process.env.TOMO_NET_TESTS
 const dir = mkdtempSync(join(tmpdir(), 'tomo-remote-'))
-afterAll(() => rmSync(dir, { recursive: true, force: true }))
+afterAll(() => removeDir(dir))
 
 describe.skipIf(!NET)('tomo-packs main', () => {
   it('stages shonan-it from main and every file matches pack.lock', async () => {

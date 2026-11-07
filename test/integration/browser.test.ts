@@ -5,7 +5,7 @@
 //   only ever sees the placeholder; another origin is refused;
 // - the campussquare skill's browser_console extraction works on a portal-like fixture page.
 // Runs only where Chrome and the dev agent-browser exist (scripts/dev-hermes.sh + `hermes pm install agent-browser`).
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -23,6 +23,7 @@ import { startStubModel } from '../stub-model/server.mjs'
 // @ts-expect-error plain JS test helper
 import { startPortal } from '../fixtures/portal/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const devTools = join(repoRoot, '.dev', 'home', 'tools')
 const chrome = findBrowsers(process.platform, process.env.HOME ?? '', process.env)[0]
@@ -81,7 +82,7 @@ beforeAll(async () => {
   writeFileSync(cfgFile, stringify(cfg))
   await start()
 }, 120_000)
-afterAll(async () => { await hermes?.stopAndWait(); await stub?.close(); await portal?.close(); if (dir) rmSync(dir, { recursive: true, force: true }) })
+afterAll(async () => { await hermes?.stopAndWait(); await stub?.close(); await portal?.close(); removeDir(dir) })
 
 describe.skipIf(!ready)('browser (Chrome, headed, Tomo profile)', () => {
   it('fills the student number on an allowed page only after approval; the model sees the placeholder', async () => {

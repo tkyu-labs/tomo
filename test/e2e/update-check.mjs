@@ -2,10 +2,11 @@
 // result in Settings. Usage: node test/e2e/update-check.mjs <app-binary> <feed-folder>
 // (feed folder: an electron-builder output with latest*.yml and the update file, e.g. built with a higher version).
 import { createServer } from 'node:http'
-import { createReadStream, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { launchApp } from './cdp.mjs'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const [bin, feed] = process.argv.slice(2)
 const served = []
@@ -19,7 +20,7 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const url = `http://127.0.0.1:${server.address().port}/`
 const data = mkdtempSync(join(tmpdir(), 'tomo-update-'))
-const app = await launchApp({ executable: bin, env: { TOMO_DATA_DIR: data, TOMO_UPDATE_URL: url }, args: ['--use-mock-keychain'] })
+const app = await launchApp({ executable: bin, env: { TOMO_DATA_DIR: data, TOMO_UPDATE_URL: url, TOMO_NO_UPDATE_CHECKS: '' }, args: ['--use-mock-keychain'] })
 const states = []
 try {
   const end = Date.now() + 240_000
@@ -37,5 +38,5 @@ try {
 } finally {
   await app.close()
   server.close()
-  rmSync(data, { recursive: true, force: true })
+  removeDir(data)
 }

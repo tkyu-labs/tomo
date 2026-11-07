@@ -3,11 +3,12 @@
 // a wrong password is refused, and changing the password re-encrypts the store.
 // Usage: npm run build && node test/e2e/portable.mjs
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { launchApp } from './cdp.mjs'
 import { startStubModel } from '../stub-model/server.mjs'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -71,7 +72,7 @@ try {
   await app?.close().catch(() => undefined)
   await stub.close()
   await sleep(1000)
-  rmSync(data, { recursive: true, force: true })
+  removeDir(data)
 }
 console.log(JSON.stringify(report, null, 2))
 const ok = Object.entries(report).every(([k, v]) => (k === 'setup' ? v === 'E2E OK' : v === true))

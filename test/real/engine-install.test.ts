@@ -1,7 +1,7 @@
 // First start without any cache (opt-in, network: TOMO_NETWORK_TESTS=1, needs build/uv from scripts/fetch-uv.mjs):
 // Hermes is downloaded from GitHub, verified, installed into a fresh Tomo data folder with the bundled uv, then the
 // gateway answers a turn against the stub model. Nothing is written to the (fake) home folder.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -13,6 +13,7 @@ import { HermesProcess } from '../../src/main/hermes/process'
 import { startStubModel } from '../stub-model/server.mjs'
 import { repoRoot, stubConfig } from '../helpers/hermes'
 import { writeFileSync } from 'node:fs'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const uv = join(repoRoot, 'build', 'uv', process.platform === 'win32' ? 'uv.exe' : 'uv')
 const walk = (d: string): string[] => readdirSync(d).flatMap((n) => { const p = join(d, n); return statSync(p).isDirectory() ? [p + '/', ...walk(p)] : [p] })
@@ -57,7 +58,7 @@ describe.skipIf(!process.env.TOMO_NETWORK_TESTS || !existsSync(uv))('engine inst
       await new EngineInstaller({ dataDir: data, hermesHome, uv, baseEnv: base }).prepare((p) => again.push(p))
       expect(again).toEqual([{ stage: 'done', percent: 100 }])
     } finally {
-      rmSync(dir, { recursive: true, force: true })
+      removeDir(dir)
     }
   }, 900_000)
 })

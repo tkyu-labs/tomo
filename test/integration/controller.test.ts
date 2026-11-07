@@ -1,7 +1,7 @@
 // M6 "done when": a turn in each answer mode produces the expected study-log record, the mode reaches the model
 // through the tomo plugin, cards arrive as events, and the exported log holds no real or placeholder values.
 // Drives AppController (the window's backend) without Electron.
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -12,6 +12,7 @@ import { tomoPaths } from '../../src/main/paths'
 // @ts-expect-error plain JS test helper
 import { startStubModel } from '../stub-model/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const xor = (b: Buffer) => Buffer.from(b.map((x) => x ^ 0x5a))
 let stub: { url: string; requests: { raw: string }[]; close(): Promise<void> }
@@ -39,7 +40,7 @@ beforeAll(async () => {
   expect(res).toEqual({ ok: true })
   ctl.completeSetup()
 })
-afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); if (dir) rmSync(dir, { recursive: true, force: true }) })
+afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); removeDir(dir) })
 
 const turn = async (sessionId: string, text: string, topic?: string) => {
   const before = events.length

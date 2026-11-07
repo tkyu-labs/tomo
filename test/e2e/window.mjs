@@ -1,11 +1,12 @@
 // Window behaviour without screenshots: the saved size and position come back, resizing is saved, closing only hides
 // the window (Tomo keeps running in the tray), and starting Tomo again brings the hidden window back.
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchApp } from './cdp.mjs'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const require = createRequire(import.meta.url)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -79,7 +80,7 @@ try {
   report.quitOnClose = exited
 } finally {
   await app.close()
-  rmSync(data, { recursive: true, force: true })
+  removeDir(data)
 }
 
 console.log(JSON.stringify(report, null, 2))

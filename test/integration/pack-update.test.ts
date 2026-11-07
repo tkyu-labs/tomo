@@ -1,6 +1,6 @@
 // A school pack update (staged from a changed copy of the fixture pack, as main would hold it) is installed automatically, SOUL.md is
 // rebuilt from the new pack and the engine restarts, so the next question runs on the new pack.
-import { cpSync, readFileSync, rmSync, writeFileSync, mkdtempSync } from 'node:fs'
+import { cpSync, readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -12,6 +12,7 @@ import { tomoPaths } from '../../src/main/paths'
 // @ts-expect-error plain JS test helper
 import { startStubModel } from '../stub-model/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const xor = (b: Buffer) => Buffer.from(b.map((x) => x ^ 0x5a))
 const fixture = join(repoRoot, 'test/fixtures/packs/example-u')
@@ -49,7 +50,7 @@ beforeAll(async () => {
   expect(await ctl.finishSetup({ full_name: { name: 'Lin Mei', furigana: 'リン メイ' }, student_number: '23B0001', faculty: 'B', year: 3 })).toEqual({ ok: true })
   ctl.completeSetup()
 })
-afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); if (dir) rmSync(dir, { recursive: true, force: true }) })
+afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); removeDir(dir) })
 
 describe('school pack update', () => {
   it('installs automatically, rebuilds SOUL.md and restarts the engine for the next question', async () => {

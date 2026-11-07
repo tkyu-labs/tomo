@@ -1,6 +1,6 @@
 // GakuenAI is configured as a custom provider with the OpenAI Responses protocol (codex_responses). A turn through
 // Hermes against the stub's /v1/responses proves the generated config works for that transport.
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -12,6 +12,7 @@ import { writeProfile } from '../../src/main/setup/profile'
 // @ts-expect-error plain JS test helper
 import { startStubModel } from '../stub-model/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 let stub: { url: string; requests: { url: string; headers: Record<string, string> }[]; close(): Promise<void> }
 let dir: string
@@ -28,7 +29,7 @@ beforeAll(async () => {
   })
   await hermes.start()
 })
-afterAll(async () => { await hermes?.stopAndWait(); await stub?.close(); if (dir) rmSync(dir, { recursive: true, force: true }) })
+afterAll(async () => { await hermes?.stopAndWait(); await stub?.close(); removeDir(dir) })
 
 describe('GakuenAI (Responses protocol)', () => {
   it('answers a turn through /v1/responses with the GakuenAI key', async () => {

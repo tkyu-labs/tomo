@@ -1,6 +1,6 @@
 // Fallback provider: with a second connection Tomo writes Hermes' fallback_model; when the provider in use fails
 // (429 here), the turn is answered by the fallback, the chat gets a `fallback` event and the study log records it.
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -12,6 +12,7 @@ import { tomoPaths } from '../../src/main/paths'
 // @ts-expect-error plain JS test helper
 import { startStubModel } from '../stub-model/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 type Stub = { url: string; requests: { url: string; raw: string }[]; close(): Promise<void> }
 const xor = (b: Buffer) => Buffer.from(b.map((x) => x ^ 0x5a))
@@ -43,7 +44,7 @@ beforeAll(async () => {
   // a second provider from Settings: it becomes the one in use, GakuenAI turns into the fallback
   await ctl.addProvider({ id: 'custom', model: 'stub-model', baseUrl: failing.url }, 'sk-failing', ['stub-model'])
 })
-afterAll(async () => { await ctl?.stopEngine(); await good?.close(); await failing?.close(); if (dir) rmSync(dir, { recursive: true, force: true }) })
+afterAll(async () => { await ctl?.stopEngine(); await good?.close(); await failing?.close(); removeDir(dir) })
 
 describe('fallback provider', () => {
   it('is on by default and written to the config', () => {

@@ -1,6 +1,6 @@
 // Without a school pack ("My school is not listed") the student answers Tomo's general Hatch. All skipped: USER.md
 // holds only the app language and the skipped note; nothing is made up, no identifiers exist.
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -11,6 +11,7 @@ import { SKIPPED_NOTE } from '../../src/shared/pack/hatch'
 // @ts-expect-error plain JS test helper
 import { startStubModel } from '../stub-model/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const xor = (b: Buffer) => Buffer.from(b.map((x) => x ^ 0x5a))
 let stub: { url: string; close(): Promise<void> }
@@ -34,7 +35,7 @@ beforeAll(async () => {
   ctl.connectProvider({ id: 'custom', model: 'stub-model', baseUrl: stub.url }, 'stub-key')
   ctl.selectPack(null)
 })
-afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); if (dir) rmSync(dir, { recursive: true, force: true }) })
+afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); removeDir(dir) })
 
 describe('general Hatch (no school pack)', () => {
   it('all skipped: USER.md has the app language and the skipped note only', async () => {

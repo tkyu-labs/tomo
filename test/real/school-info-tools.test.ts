@@ -2,7 +2,7 @@
 // DuckDuckGo web search (ddgs extra) with site:, a PDF download with curl into $TOMO_DOWNLOADS without any approval
 // prompt, read_file on that PDF (local text extraction), and keeping it in $TOMO_DOCUMENTS.
 // Needs network (DuckDuckGo, www.shonan-it.ac.jp). Run: TOMO_NET_TESTS=1 npx vitest run test/real/school-info-tools.test.ts
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -13,6 +13,7 @@ import { tomoPaths } from '../../src/main/paths'
 // @ts-expect-error plain JS test helper
 import { startStubModel } from '../stub-model/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const NET = !!process.env.TOMO_NET_TESTS
 const PDF = 'https://www.shonan-it.ac.jp/media/schedule2026_AB.pdf'
@@ -44,7 +45,7 @@ describe.skipIf(!NET)('school-info tool chain', () => {
     expect(await ctl.finishSetup({ full_name: { name: 'Lin Mei', furigana: 'リン メイ' }, student_number: '23B0001', faculty: 'B', year: 3 })).toEqual({ ok: true })
     ctl.completeSetup()
   })
-  afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); if (dir) rmSync(dir, { recursive: true, force: true }) })
+  afterAll(async () => { await ctl?.stopEngine(); await stub?.close(); removeDir(dir) })
 
   it('searches the school site, downloads and reads the calendar PDF and keeps it, without asking', async () => {
     const downloaded = join(dir, 'data', 'downloads', 'schedule2026_AB.pdf')

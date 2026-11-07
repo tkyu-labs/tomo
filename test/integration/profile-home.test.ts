@@ -1,6 +1,6 @@
 // M4 "done when": the home Tomo generates passes Hermes' setup.runtime_check, and a turn sees Tomo's SOUL, the
 // Hatch USER.md entries (placeholders only) and the pack's skill — with the real values masked end to end.
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -14,6 +14,7 @@ import { Masker } from '../../src/shared/privacy/masker'
 // @ts-expect-error plain JS test helper
 import { startStubModel } from '../stub-model/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 let stub: { url: string; requests: { raw: string; body: { messages: { role: string; content: unknown }[] } }[]; close(): Promise<void> }
 let dir: string
@@ -37,7 +38,7 @@ beforeAll(async () => {
   hermes = new HermesProcess({ runtime: devRuntime(repoRoot), env })
   await hermes.start()
 })
-afterAll(async () => { await hermes?.stopAndWait(); await stub?.close(); rmSync(dir, { recursive: true, force: true }) })
+afterAll(async () => { await hermes?.stopAndWait(); await stub?.close(); removeDir(dir) })
 
 describe('generated Hermes home', () => {
   it('passes setup.runtime_check', async () => {

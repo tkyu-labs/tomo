@@ -1,8 +1,9 @@
 // Smoke check: the built app opens a window, the preload bridge works, and Node is not exposed.
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { launchApp } from './cdp.mjs'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const data = mkdtempSync(join(tmpdir(), 'tomo-smoke-'))
 const app = await launchApp({ env: { TOMO_DATA_DIR: data } })
@@ -15,5 +16,5 @@ try {
   console.log('SMOKE OK')
 } finally {
   await app.close()
-  rmSync(data, { recursive: true, force: true })
+  removeDir(data)
 }

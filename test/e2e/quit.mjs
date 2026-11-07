@@ -3,12 +3,13 @@
 // Starts from a set-up Tomo made by first-run.mjs (stub model on a fixed port). Needs network (opens example.com).
 // Usage: npm run build && node test/e2e/quit.mjs   (TOMO_E2E_APP=<installed Tomo binary> to check a build)
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { launchApp } from './cdp.mjs'
 import { killAll, label, survivors, tomoProcesses } from './procs.mjs'
 import { startStubModel } from '../stub-model/server.mjs'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -104,7 +105,7 @@ try {
 } finally {
   await stub.close()
   await sleep(1000)
-  rmSync(data, { recursive: true, force: true })
+  removeDir(data)
 }
 
 console.log(JSON.stringify(report, null, 2))

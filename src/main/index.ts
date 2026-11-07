@@ -277,9 +277,12 @@ function setMenu(): void {
 app.whenReady().then(async () => {
   if (!primaryInstance) return
   setMenu()
-  updater.start()
-  // school pack updates from tomo-packs releases (packaged app; TOMO_PACK_UPDATES=1 in development)
-  if (app.isPackaged || process.env.TOMO_PACK_UPDATES === '1') controller.packUpdater.start()
+  // automatic checks ask GitHub anonymously (60 requests an hour per address): tests that start Tomo many times turn
+  // them off with TOMO_NO_UPDATE_CHECKS=1 (the e2e default); "Check now" still works
+  const autoChecks = process.env.TOMO_NO_UPDATE_CHECKS !== '1'
+  if (autoChecks) updater.start()
+  // school pack updates from the tomo-packs main branch (packaged app; TOMO_PACK_UPDATES=1 in development)
+  if (autoChecks && (app.isPackaged || process.env.TOMO_PACK_UPDATES === '1')) controller.packUpdater.start()
   if (isDev && process.platform === 'darwin') app.dock?.setIcon(join(appIconDir, 'icon.png')) // packaged builds use icon.icns
   win = createWindow()
   tray.create()

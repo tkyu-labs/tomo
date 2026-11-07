@@ -2,7 +2,7 @@
 // The fixture portal plays the school's personal-data site. Asked for a grade, the model must not ask for permission
 // itself (no clarify), must read the value with browser_console, and the value reaches it only through Tomo's own
 // approval; when the student does not allow it, the answer does not contain it.
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -18,6 +18,7 @@ import { Masker } from '../../src/shared/privacy/masker'
 // @ts-expect-error plain JS test helper
 import { startPortal } from '../fixtures/portal/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const devTools = join(repoRoot, '.dev', 'home', 'tools')
 const chrome = findBrowsers(process.platform, process.env.HOME ?? '', process.env)[0]
@@ -61,7 +62,7 @@ async function ask(allow: boolean) {
   } finally {
     await hermes.stopAndWait()
     await portal.close()
-    rmSync(dir, { recursive: true, force: true })
+    removeDir(dir)
   }
 }
 

@@ -1,7 +1,7 @@
 // Spike 4, automated part, with a real model (opt-in: TOMO_REAL_MODEL=1 + OPENAI_API_KEY, Chrome + dev agent-browser):
 // on a page with a sign-in form the agent stops and asks the student to sign in (never types into it), and after
 // the student says they are done it continues and reads the page.
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -17,6 +17,7 @@ import { Masker } from '../../src/shared/privacy/masker'
 // @ts-expect-error plain JS test helper
 import { startPortal } from '../fixtures/portal/server.mjs'
 import { repoRoot } from '../helpers/hermes'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const devTools = join(repoRoot, '.dev', 'home', 'tools')
 const chrome = findBrowsers(process.platform, process.env.HOME ?? '', process.env)[0]
@@ -64,7 +65,7 @@ describe.skipIf(!enabled)('real model on a sign-in page', () => {
     } finally {
       await hermes.stopAndWait()
       await portal.close()
-      rmSync(dir, { recursive: true, force: true })
+      removeDir(dir)
     }
   }, 600_000)
 })

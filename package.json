@@ -1,7 +1,7 @@
 {
   "name": "tomo",
   "productName": "Tomo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A desktop companion for international students in Japan, built on Hermes Agent.",
   "license": "MIT",
   "private": true,

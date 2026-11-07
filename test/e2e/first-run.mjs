@@ -1,12 +1,13 @@
 // M5 "done when": walk first run to a first answer with the stub model, then audit labels in en / zh / ja.
 // Runs the built app with a throw-away data folder, the fictional test pack and macOS' mock keychain.
 // Usage: npm run build && node test/e2e/first-run.mjs
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { launchApp } from './cdp.mjs'
 import { SCAN } from './audit.mjs'
 import { startStubModel } from '../stub-model/server.mjs'
+import { removeDir } from '../helpers/remove-dir.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const REAL = !!process.env.TOMO_E2E_REAL && !!process.env.OPENAI_API_KEY
@@ -30,7 +31,8 @@ const PACK = process.env.TOMO_E2E_PACK ?? 'example-u'
 const PORTABLE = process.env.TOMO_E2E_PORTABLE ?? ''
 const app = await launchApp({
   executable: process.env.TOMO_E2E_APP,
-  env: { TOMO_DATA_DIR: data, ...(PORTABLE ? { TOMO_PORTABLE_ROOT: data } : {}), ...(process.env.TOMO_E2E_APP ? {} : { TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }) },
+  // GakuenAI offered (release builds bake its URL in; here the stub stands in for it)
+  env: { TOMO_DATA_DIR: data, TOMO_GAKUEN_URL: stub.url, ...(PORTABLE ? { TOMO_PORTABLE_ROOT: data } : {}), ...(process.env.TOMO_E2E_APP ? {} : { TOMO_PACKS_DIR: join(root, 'test/fixtures/packs') }) },
   args: ['--use-mock-keychain', `--inspect=${INSPECT}`],
 })
 const $ = (sel) => `document.querySelector(${JSON.stringify(sel)})`
@@ -79,7 +81,11 @@ try {
     await type('[data-testid=pw-new]', PORTABLE); await type('[data-testid=pw-confirm]', PORTABLE); await sleep(100)
   }
   await next() // AI provider
+  // GakuenAI key field on the step itself (show + test), no tester-only wording; GakuenAI first in the sheet
+  report.gakuenField = await app.evaluate(`!!document.querySelector('[data-testid=gakuen-key]') && !!document.querySelector('[data-testid=gakuen-test]')`)
+  report.testerWording = await app.evaluate(`/tester/i.test(document.body.innerText)`)
   await click('[data-testid=other-provider]'); await sleep(200)
+  report.gakuenFirst = await app.evaluate(`document.querySelector('.provider-list input[type=radio]')?.dataset.testid === 'provider-gakuen'`)
   report.enginePillAtStart = await app.evaluate(`document.querySelector('[data-testid=engine-pill]')?.textContent`)
   if (REAL) {
     // ChatGPT sign-in: OpenAI hands out a device code (not completed here; switching provider cancels it)
@@ -110,8 +116,10 @@ try {
   await app.waitFor($('[data-testid=connected-provider]'))
   await audit('en:ai')
   await next() // pack
-  await click(`[data-testid=pack-${PACK}]`); await sleep(100)
-  report.packSelected = await app.evaluate(`(() => { const el = document.querySelector('[data-testid=pack-${PACK}]'); const check = el.querySelector('.pack-check'); return el.getAttribute('aria-checked') === 'true' && getComputedStyle(check).display !== 'none' && getComputedStyle(el).boxShadow.includes('rgba(47, 111, 235') })()`)
+  await click(`[data-testid=pack-${PACK}]`)
+  // the ring has a short transition: wait for it instead of reading it mid-way (slow PCs)
+  report.packSelected = await app.waitFor(`(() => { const el = document.querySelector('[data-testid=pack-${PACK}]'); const check = el.querySelector('.pack-check'); return el.getAttribute('aria-checked') === 'true' && getComputedStyle(check).display !== 'none' && getComputedStyle(el).boxShadow.includes('47, 111, 235)') })()`, 5000).then(() => true, () => false)
+  if (!report.packSelected) report.packSelectedSeen = await app.evaluate(`(() => { const el = document.querySelector('[data-testid=pack-${PACK}]'); return el && { checked: el.getAttribute('aria-checked'), check: getComputedStyle(el.querySelector('.pack-check')).display, ring: getComputedStyle(el).boxShadow } })()`)
   await audit('en:pack')
   await next() // hatch page 1
   await app.waitFor($('.hatch-page'))
@@ -140,7 +148,7 @@ try {
   }
   await app.waitFor(`${$('[data-testid=browser-found]')} || ${$('[data-testid=browser-missing]')}`)
   await next() // finish
-  await app.waitFor(`[...document.querySelectorAll('[data-task]')].every((t) => t.dataset.state === 'done') || ${$('.task.error')}`, 120000)
+  await app.waitFor(`[...document.querySelectorAll('[data-task]')].every((t) => t.dataset.state === 'done') || ${$('.task.error')}`, process.env.TOMO_E2E_APP ? 900000 : 120000) // packaged: the engine is installed now (slow PCs: minutes)
   report.finish = await app.evaluate(`[...document.querySelectorAll('[data-task]')].map((t) => t.dataset.task + ':' + t.dataset.state + (t.dataset.state === 'error' ? ' ' + t.textContent : ''))`)
   report.enginePill = await app.evaluate(`document.querySelector('[data-testid=engine-pill]')?.className`)
   await audit('en:finish')
@@ -217,7 +225,7 @@ try {
   }
   report.audit = Object.fromEntries(Object.entries(audits).filter(([, v]) => v.length))
   console.log(JSON.stringify(report, null, 2))
-  const ok = (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && (REAL || (report.removeDialog && report.generalHatch === 'About you' && report.afterRemove?.pack === null && !report.afterRemove.hatchPending && report.afterRemove.memory.length === 2 && report.afterRemove.memory[1].startsWith('The user skipped'))) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
+  const ok = report.gakuenField && !report.testerWording && report.gakuenFirst && (!PORTABLE || (report.portableSetup && report.portableBlocked)) && report.finish.every((f) => f.endsWith(':done')) && report.packSelected && report.trafficLightsClear && report.enginePill?.includes('ready') && report.modelSelected && (REAL ? report.answer.length > 0 : report.answer.includes('Lin Mei') && report.card?.includes('For Lin Mei') && report.hoverChecked > 0 && report.hoverShift === 0 && report.examplesShown && report.summaryName?.includes('{{FULL_NAME}}') && report.chatgptSignIn && report.unreachableReported && /flex/.test(report.maskedTag?.display ?? '') && report.maskedTag.gap >= 3 && report.maskedTag.centred && report.toolStepsLayout?.leftDiff === 0 && Math.abs(report.toolStepsLayout.topDiff) <= 1) && (REAL || (report.removeDialog && report.generalHatch === 'About you' && report.afterRemove?.pack === null && !report.afterRemove.hatchPending && report.afterRemove.memory.length === 2 && report.afterRemove.memory[1].startsWith('The user skipped'))) && report.banner?.kind === 'app-ready' && report.banner.text.includes('9.9.9') && report.banner.action === 'Restart now' && report.bannerDismissed && report.settingsColumns === 1 && report.packSettings?.section && report.packSettings.mode === 'auto' && report.fallbackSection?.fallback && report.fallbackSection.connections === 1 && !report.leak && Object.keys(report.audit).length === 0
   console.log(ok ? 'E2E OK' : 'E2E FAILED')
   process.exitCode = ok ? 0 : 1
 } catch (e) {
@@ -227,5 +235,5 @@ try {
 } finally {
   await app.close()
   await stub.close()
-  if (!process.env.TOMO_E2E_DATA) rmSync(data, { recursive: true, force: true })
+  if (!process.env.TOMO_E2E_DATA) removeDir(data)
 }

@@ -574,6 +574,9 @@ html[data-theme="dark"] .segmented button.active { background: rgba(255, 255, 25
 
 /* first-run: connect step */
 .setup-key { display: grid; gap: 6px; margin-top: 8px; }
+.setup-key-text { margin: 0; font-size: 13px; }
+.setup-key-text + .key-input-row { margin-bottom: 10px; }
+.setup-key-choose { justify-self: start; }
 .link-button { justify-self: start; padding: 0; border: 0; background: none; color: var(--accent); font-size: 13px; }
 .link-button:hover { text-decoration: underline; }
 .connected-row { margin-top: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; border-radius: var(--r-md); background: var(--surface-muted); }

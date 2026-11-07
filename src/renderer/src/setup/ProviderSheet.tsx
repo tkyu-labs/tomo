@@ -1,4 +1,4 @@
-// Key sheet: GakuenAI first (tester builds), OpenAI by ChatGPT sign-in (the only OAuth), then OpenRouter, DeepSeek,
+// Key sheet: GakuenAI first (builds that know its URL), OpenAI by ChatGPT sign-in (the only OAuth), then OpenRouter, DeepSeek,
 // OpenAI by API key and a custom OpenAI-/Anthropic-compatible endpoint. "Test" fetches the provider's model list
 // with the key, so the student picks a model instead of typing an id. Keys go to the main process and the keychain.
 import { useEffect, useState } from 'react'
@@ -70,7 +70,7 @@ export function ProviderSheet({ onClose, onConnect, gakuenAvailable }: {
   }
 
   const subtitle: Record<ProviderId, string> = {
-    gakuen: c('For Tomo testers · paste the key you received with Tomo', 'Tomo 测试用户 · 粘贴随 Tomo 收到的 Key', 'Tomo テスター向け · Tomo と一緒に届いたキーを貼り付け'),
+    gakuen: c('Paste your GakuenAI key', '粘贴你的 GakuenAI Key', 'GakuenAI キーを貼り付け'),
     openai: c('Sign in with your ChatGPT account · no key needed', '用 ChatGPT 账号登录 · 无需 Key', 'ChatGPT アカウントでサインイン · キー不要'),
     'openai-api': c('OpenAI API key', 'OpenAI API Key', 'OpenAI の API キー'),
     openrouter: c('One API key for many models', '一个 API Key 使用多家模型', '1つの API キーで多くのモデル'),
@@ -150,7 +150,7 @@ export function ProviderSheet({ onClose, onConnect, gakuenAvailable }: {
               )}
               <label className="field-label" htmlFor="api-key">{c('API key', 'API Key', 'API キー')}</label>
               <div className="key-input-row">
-                <input id="api-key" type={showKey ? 'text' : 'password'} className="catalog-search-input" value={apiKey} onChange={(e) => { setApiKey(e.target.value); setTest({ state: 'idle' }) }} placeholder={provider === 'gakuen' ? 'gk-…' : 'sk-…'} autoComplete="off" spellCheck={false} />
+                <input id="api-key" type={showKey ? 'text' : 'password'} className="catalog-search-input" value={apiKey} onChange={(e) => { setApiKey(e.target.value); setTest({ state: 'idle' }) }} placeholder="sk-…" autoComplete="off" spellCheck={false} />
                 <button className="secondary" onClick={() => setShowKey(!showKey)} aria-label={c('Show key', '显示 Key', 'キーを表示')}><Icon name="eye" size={14} /></button>
                 <button className="secondary" data-testid="provider-test" disabled={!canTest} onClick={() => void runTest()}>
                   {test.state === 'testing' ? c('Testing…', '测试中…', 'テスト中…') : c('Test', '测试', 'テスト')}

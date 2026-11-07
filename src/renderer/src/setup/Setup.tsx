@@ -60,6 +60,8 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
   const [prefilled, setPrefilled] = useState<string[]>(() => (state.hatchPending ? ['reply_language'] : []))
   const [sheetOpen, setSheetOpen] = useState(false)
   const [gakuenKey, setGakuenKey] = useState('')
+  const [showGakuenKey, setShowGakuenKey] = useState(false)
+  const [gakuenTesting, setGakuenTesting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [browsers, setBrowsers] = useState<BrowserInfo[] | null>(null)
   const [chrome, setChrome] = useState<{ stage?: string; error?: string; skipped?: boolean }>({})
@@ -127,8 +129,10 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
     setStep(step - 1)
   }
 
+  // "Test" checks the key against GakuenAI and, when it works, connects with the suggested model right away
   const connectGakuen = async () => {
     setError(null)
+    setGakuenTesting(true)
     try {
       const res = await window.tomo.listProviderModels({ id: 'gakuen', model: '' }, gakuenKey.trim())
       if (!res.ok || !res.models) throw new Error(res.error === 'wrong-key' ? c('GakuenAI did not accept this key.', 'GakuenAI 不接受这个 Key。', 'GakuenAI がこのキーを受け付けませんでした。') : c('Cannot reach GakuenAI.', '无法连接 GakuenAI。', 'GakuenAI に接続できません。'))
@@ -137,6 +141,8 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGakuenTesting(false)
     }
   }
   const connect = async (choice: ProviderChoice, key?: string, models?: string[]) => {
@@ -210,7 +216,7 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
             <>
               <div className="setup-visual"><Icon name="key" size={26} /></div>
               <h1>{c('Connect an AI provider', '连接 AI 服务', 'AI サービスを接続')}</h1>
-              <p>{c('Tomo needs an AI provider to answer. If you are a tester, paste the GakuenAI key you received with Tomo.', 'Tomo 需要连接一个 AI 服务才能回答问题。测试用户请粘贴随 Tomo 收到的 GakuenAI Key。', 'Tomo が回答するには AI サービスの接続が必要です。テスターの方は Tomo と一緒に届いた GakuenAI キーを貼り付けてください。')}</p>
+              <p>{c('Tomo needs an AI provider to answer questions.', 'Tomo 需要连接一个 AI 服务才能回答问题。', 'Tomo が質問に答えるには、AI サービスへの接続が必要です。')}</p>
               {state.provider ? (
                 <div className="connected-row" data-testid="connected-provider">
                   <Icon name="check" size={14} />
@@ -224,15 +230,19 @@ export function Setup({ state, refresh, onDone }: { state: AppState; refresh: ()
                 <div className="setup-key">
                   {state.gakuenAvailable && (
                     <>
-                      <label className="field-label" htmlFor="gakuen-key">{c('GakuenAI key', 'GakuenAI Key', 'GakuenAI キー')}</label>
+                      <label className="setup-key-text" htmlFor="gakuen-key">{c('If you have a GakuenAI key, enter it here:', '如果你有 GakuenAI Key，可以直接在这里填入：', 'GakuenAI キーをお持ちなら、ここに入力してください：')}</label>
                       <div className="key-input-row">
-                        <input id="gakuen-key" type="password" className="catalog-search-input" value={gakuenKey} onChange={(e) => setGakuenKey(e.target.value)} placeholder="gk-…" autoComplete="off" spellCheck={false} />
-                        <button className="secondary" disabled={!gakuenKey.trim()} onClick={connectGakuen}>{c('Connect', '连接', '接続')}</button>
+                        <input id="gakuen-key" data-testid="gakuen-key" type={showGakuenKey ? 'text' : 'password'} className="catalog-search-input" value={gakuenKey} onChange={(e) => { setGakuenKey(e.target.value); setError(null) }} onKeyDown={(e) => e.key === 'Enter' && gakuenKey.trim() && !gakuenTesting && void connectGakuen()} placeholder="sk-…" autoComplete="off" spellCheck={false} />
+                        <button className="secondary" onClick={() => setShowGakuenKey(!showGakuenKey)} aria-label={showGakuenKey ? c('Hide key', '隐藏 Key', 'キーを隠す') : c('Show key', '显示 Key', 'キーを表示')} aria-pressed={showGakuenKey}><Icon name="eye" size={14} /></button>
+                        <button className="secondary" data-testid="gakuen-test" disabled={!gakuenKey.trim() || gakuenTesting} onClick={() => void connectGakuen()}>
+                          {gakuenTesting ? c('Testing…', '测试中…', 'テスト中…') : c('Test', '测试', 'テスト')}
+                        </button>
                       </div>
+                      <p className="setup-key-text">{c('Or use your own key:', '或者你想使用你自己的 Key：', 'または、ご自身のキーを使う：')}</p>
                     </>
                   )}
-                  <button className="link-button" data-testid="other-provider" onClick={() => setSheetOpen(true)}>
-                    {state.gakuenAvailable ? c('Use another provider…', '使用其他服务…', 'ほかのサービスを使う…') : c('Choose a provider…', '选择 AI 服务…', 'AI サービスを選ぶ…')}
+                  <button className="secondary setup-key-choose" data-testid="other-provider" onClick={() => setSheetOpen(true)}>
+                    {c('Choose an AI provider…', '选择 AI 服务…', 'AI サービスを選ぶ…')}
                   </button>
                 </div>
               )}

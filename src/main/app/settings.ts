@@ -20,7 +20,7 @@ export interface Settings {
   answerMode: AnswerMode
   /** Random pseudonymous id for the local study log. */
   participantId?: string
-  /** GakuenAI relay URL for tester builds (set by the installer or TOMO_GAKUEN_URL). */
+  /** GakuenAI relay URL for release builds (set by the installer or TOMO_GAKUEN_URL). */
   gakuenUrl?: string
   /** The school pack was removed: the general Hatch runs before the chat comes back (first-run screen at Hatch). */
   hatchPending?: boolean

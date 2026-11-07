@@ -74,7 +74,7 @@ const controller = new AppController({
   baseEnv: process.env,
   appVersion: app.getVersion(),
   // GakuenAI relay: runtime environment first (TOMO_GAKUEN_URL, or GAKUEN_API_GATEWAY as set for development), then the
-  // value baked into tester builds at build time (MAIN_VITE_GAKUEN_URL). The URL is never part of the source.
+  // value baked into release builds at build time (MAIN_VITE_GAKUEN_URL). The URL is never part of the source.
   gakuenUrl: process.env.TOMO_GAKUEN_URL || process.env.GAKUEN_API_GATEWAY || import.meta.env.MAIN_VITE_GAKUEN_URL || undefined,
   emit: {
     chat: (sessionId, e) => send(IPC.chatEvent, sessionId, e),
